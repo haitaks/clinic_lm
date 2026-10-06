@@ -1,0 +1,15 @@
+# датасеты генерируются скриптами synth/ — в репозиторий не коммитятся
+data/
+
+# окружение и кэши
+.venv-tr/
+__pycache__/
+*.pyc
+
+# рабочие артефакты, не нужные в репозитории
+models.zip
+models/model_base.pt
+models/model_nano.pt
+models/_train_base.txt
+export_*.md
+*.pdf
