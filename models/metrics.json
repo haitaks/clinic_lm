@@ -1,9 +1,15 @@
 {
-  "n": 867,
-  "exact": 1.0,
+  "n": 973,
+  "exact": 0.998972250770812,
   "intent": 1.0,
   "specialty": 1.0,
   "time": 1.0,
-  "symptoms_f1": 1.0,
-  "samples": []
+  "symptoms_f1": 0.9994861253854059,
+  "samples": [
+    {
+      "text": "не отменяй, наоборот, хочу к терапевту, в восемь тридцать утра. высыпания. головокружение. пятка болит при ходьбе.",
+      "gold": "<BOOK> <GP> <TIME> T_H08_30 </TIME> <SYMPTOM_RASH> <SYMPTOM_DIZZINESS> <END_FRAME>",
+      "pred": "<BOOK> <GP> <TIME> T_H08_30 </TIME> <SYMPTOM_RASH> <SYMPTOM_HEADACHE> <END_FRAME>"
+    }
+  ]
 }

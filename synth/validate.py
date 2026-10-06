@@ -18,6 +18,7 @@ import re
 from vocab import (SPECIALTIES, SYMPTOMS, TEMPORALS, REQUESTS,
                    GREETINGS, POLITENESS, UNSUPPORTED_POOLS,
                    UNSUPPORTED_LEADS, UNSUPPORTED_LEADS_NO_GREET,
+                   UNLABELED_COMPLAINTS,
                    TEMPORAL_ENTRIES, TIME_FACTORS, TIME_SCOPE, TIME_DAY)
 
 _spec_needles = {
@@ -89,8 +90,10 @@ def validate_text(frame, text: str) -> list[str]:
 def self_check():
     """Пересечения "иголок" между разными метками и чужими строками словаря.
 
-    Пример реальной ловушки: короткое "лор" как подстрока в другом слове,
-    или "зубной" внутри "зубная боль". Ловится до генерации датасета.
+    Конфликт определяется так же, как матчится валидация — по границам
+    слов: "терапевт" не конфликтует с "психотерапевтом" (приставка
+    блокируется lookbehind), а вот "зубной" внутри "зубная боль" —
+    конфликт. Ловится до генерации датасета.
     Также проверяет фактор-аннотации TEMPORAL_ENTRIES: токен существует,
     порядок категорий scope -> day -> time, без дублей категорий.
     """
@@ -132,7 +135,10 @@ def self_check():
                 continue  # синонимы одной метки могут пересекаться
             for x in na:
                 for y in nb:
-                    if x == y or x in y or y in x:
+                    # конфликт = иголка реально матчится по границам слов
+                    # ("терапевт" не конфликтует с "психотерапевтом":
+                    # приставка блокируется lookbehind, как и в validate_text)
+                    if x == y or _contains(x, normalize(y)) or _contains(y, normalize(x)):
                         problems.append(f"пересечение {ka}/{kb}: '{x}' vs '{y}'")
 
     all_needles = [(k, n) for k, needles in labelled for n in needles]
@@ -146,8 +152,21 @@ def self_check():
 
     for key, needle in all_needles:
         for aux in aux_strings:
-            if needle != aux and needle in aux:
+            if needle != aux and _contains(needle, normalize(aux)):
                 problems.append(
                     f"иголка {key} '{needle}' — подстрока служебной строки '{aux}'")
+
+    # жалобы-шум обязаны быть "невидимыми" для валидатора: ни иголок
+    # симптомов/специальностей, ни временных фраз
+    for c in UNLABELED_COMPLAINTS:
+        cn = normalize(c)
+        for key, needle in all_needles:
+            if _contains(needle, cn):
+                problems.append(
+                    f"жалоба-шум '{c}' содержит иголку {key} '{needle}'")
+        for tmp in TEMPORALS:
+            if _contains(tmp, cn):
+                problems.append(
+                    f"жалоба-шум '{c}' содержит временную фразу '{tmp}'")
 
     return problems

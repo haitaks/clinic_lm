@@ -14,11 +14,15 @@ import random
 import re
 
 from vocab import (SPECIALTIES, SYMPTOMS, REQUESTS, GREETINGS, POLITENESS,
-                   UNSUPPORTED_POOLS, STATEMENT_POOLS,
+                   UNSUPPORTED_POOLS, STATEMENT_POOLS, UNLABELED_COMPLAINTS,
                    UNSUPPORTED_LEADS, UNSUPPORTED_LEADS_NO_GREET)
 from frames import Frame
 
 SKELETONS = {}
+
+# доля текстов с неразмеченной жалобой-шумом (незнакомые симптомы
+# должны игнорироваться, как незнакомое время уходит в <T_UNKNOWN>)
+COMPLAINT_NOISE_PROBA = 0.15
 
 
 def skeleton(sk_id, intents, ood=False, hard=False, structural=False):
@@ -375,6 +379,11 @@ def realize(frame: Frame, rng) -> dict:
 
     sk_id = _choose_skeleton(frame, rng)
     raw = SKELETONS[sk_id]["fn"](p, rng)
+    # шум только при конкретной специальности: на фреймах-уточнениях
+    # ("запишите к врачу, не знаю к кому") он путает NEEDS_CLARIFICATION
+    if (not frame.conflict and not frame.needs_clarification
+            and rng.random() < COMPLAINT_NOISE_PROBA):
+        raw = f"{raw} {_cap(rng.choice(UNLABELED_COMPLAINTS))}."
     text, stt = stt_style(raw, rng)
     return {"text": text, "skeleton": sk_id, "stt": stt,
             "temporal": frame.temporal}

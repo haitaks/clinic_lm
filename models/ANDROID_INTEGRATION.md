@@ -43,7 +43,7 @@ state = INTENT
 ```
 INTENT      -> {BOOK, RESCHEDULE, CANCEL, UNSUPPORTED}
 UNSUPPORTED -> END_FRAME;  END_FRAME -> EOS
-SPECIALTY   -> 9 токенов специальностей (включая UNKNOWN_SPECIALTY)
+SPECIALTY   -> 10 токенов специальностей (включая UNKNOWN_SPECIALTY)
 TIME        -> {T_UNKNOWN} | <TIME> ...
 внутри <TIME>: факторы категорий ОБЛАСТЬ -> ДЕНЬ -> ВРЕМЯ, по одному из
   категории, минимум один; закрывать слот можно только после фактора
@@ -72,7 +72,8 @@ NEEDS_CLARIFICATION -> END_FRAME
 
 ## Что модель умеет и не умеет (кратко)
 
-Умеет: BOOK/RESCHEDULE/CANCEL/UNSUPPORTED, 8 специальностей + UNKNOWN,
+Умеет: BOOK/RESCHEDULE/CANCEL/UNSUPPORTED, 9 специальностей (включая хирурга
+и психотерапевта) + UNKNOWN,
 13 симптомов, время фактор-токенами (`T_NEXT_WEEK T_FRI T_H17_30`).
 Провалы — см. `failures_report.md`: невидимые синонимы специальностей,
 академический стиль HASD, часть живой разговорной речи.

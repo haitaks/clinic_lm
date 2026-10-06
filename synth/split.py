@@ -16,6 +16,7 @@ from collections import defaultdict
 from frames import Frame, sample_frame, frame_key, target_string
 from realize import realize
 from validate import validate_text, normalize
+from vocab import SPECIALTIES
 
 CAP_PER_FRAME = 60          # максимум текстов на один фрейм
 PARAPHRASE_MIN, PARAPHRASE_MAX = 3, 7
@@ -30,10 +31,8 @@ def _record(frame: Frame, text: str, sk: str, stt: str, split: str) -> dict:
         "target": target_string(frame),
         "frame": {
             "intent": frame.intent,
-            "specialty": frame.specialty if frame.specialty in (
-                "gp", "dentist", "dermatologist", "gynecologist",
-                "ophthalmologist", "neurologist", "psychologist", "ent",
-            ) else "unknown" if frame.specialty else None,
+            "specialty": frame.specialty if frame.specialty in SPECIALTIES
+            else "unknown" if frame.specialty else None,
             "symptoms": list(frame.symptoms),
             "temporal": frame.temporal,
             "temporal_factors": list(frame.temporal_factors),
