@@ -50,11 +50,13 @@ def main():
     # гарантирует, что хвост не влияет на позиции до него)
     dummy = torch.randint(0, tok.get_vocab_size(), (1, 128), dtype=torch.long)
     out_path = ROOT / "models" / "model.onnx"
+    (ROOT / "models" / "model.onnx.data").unlink(missing_ok=True)  # сайдкар
     torch.onnx.export(
         wrapper, dummy, str(out_path),
         input_names=["input_ids"],
         output_names=["logits"],
         opset_version=17,
+        external_data=False,   # один файл: веса инлайном, без model.onnx.data
     )
     print(f"экспортировано: {out_path} "
           f"({out_path.stat().st_size / 1e6:.1f} МБ, вход [1,128])")

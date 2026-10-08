@@ -35,9 +35,15 @@ class MultiheadSelfAttention(nn.Module):
         att = att.masked_fill(causal, float("-inf"))
         if pad_mask is not None:                   # ключи-паддинг не видны
             att = att.masked_fill(pad_mask[:, None, None, :], float("-inf"))
-        # полностью замаскированные строки (запросы на паддинге) дают NaN
-        # после softmax; зануляем, чтобы NaN не полз в градиенты
-        att = self.drop(torch.nan_to_num(att.softmax(dim=-1), 0.0))
+        att = att.softmax(dim=-1)
+        if pad_mask is not None:
+            # полностью замаскированные строки (запросы на паддинге) дают
+            # NaN после softmax; зануляем, чтобы NaN не полз в градиенты.
+            # На инференсе (pad_mask=None) NaN невозможен (каузальная маска
+            # всегда оставляет >=1 видимый ключ), а nan_to_num портит
+            # экспорт: ONNX IsNaN/IsInf не исполняются TFLite-рантаймом.
+            att = torch.nan_to_num(att, 0.0)
+        att = self.drop(att)
         out = (att @ v).transpose(1, 2).reshape(B, T, C)
         return self.proj(out)
 
@@ -64,6 +70,15 @@ class TinyGPT(nn.Module):
                  ffn_dim=768, context=128, dropout=0.1):
         super().__init__()
         self.context = context
+        # Каузальная маска — константа контекста. persistent=False:
+        # в state_dict не попадает (старые чекпойнты грузятся как раньше),
+        # а экспортёру не нужно строить Trilu из torch.triu — некоторые
+        # ONNX->TF конвертеры на нём спотыкаются.
+        self.register_buffer(
+            "causal_mask",
+            torch.triu(torch.ones(context, context, dtype=torch.bool),
+                       diagonal=1),
+            persistent=False)
         self.tok = nn.Embedding(vocab_size, d_model)
         self.pos = nn.Embedding(context, d_model)
         self.drop = nn.Dropout(dropout)
@@ -86,8 +101,7 @@ class TinyGPT(nn.Module):
         B, T = idx.shape
         pos = torch.arange(T, device=idx.device)
         x = self.drop(self.tok(idx) + self.pos(pos)[None])
-        causal = torch.triu(torch.ones(T, T, device=idx.device, dtype=torch.bool),
-                            diagonal=1)
+        causal = self.causal_mask[:T, :T]
         for blk in self.blocks:
             x = blk(x, causal, pad_mask)
         return self.head(self.ln_f(x))

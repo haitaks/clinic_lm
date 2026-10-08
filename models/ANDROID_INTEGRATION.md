@@ -4,15 +4,26 @@
 
 | Файл | Размер | Что это |
 | :-- | :-- | :-- |
-| `model.onnx` | ~13 МБ (fp32) | decoder-only Transformer, 3.3M параметров |
+| `model.tflite` | 24 МБ (fp32) | decoder-only Transformer, веса из `model.pt` |
+| `model_int8.tflite` | 7 МБ (weight int8) | то же, dynamic-range квантизация; фреймы совпадают с fp32 |
+| `model.onnx` | 24 МБ (fp32) | ONNX-экспорт — для бэкенда или приложений БЕЗ sherpa-onnx |
 | `tokenizer.json` | ~0.3 МБ | ByteLevel BPE + спецтокены (формат HF tokenizers) |
 | `failures_report.md` | — | кейсы, которые модель НЕ обрабатывает (читать до демо) |
 
-Runtime: **ONNX Runtime Mobile** (или onnxruntime android aar). Квантизация
-в int8 (dynamic quantization) ужмёт модель до ~4 МБ с минимальной потерей —
-проверить парность после квантизации обязательным прогоном тестов.
+Runtime: **TensorFlow Lite / LiteRT**. Если в приложении уже есть sherpa-onnx
+(ASR), это единственный мирный вариант: Java-обёртка ONNX Runtime тянет
+вторую `libonnxruntime.so` с несовместимым ABI (версионированные символы
+QNN-сборки sherpa против неверсионированных Microsoft), один процесс —
+одна библиотека с таким именем. TFLite — независимый рантайм, конфликт
+не возникает. ONNX-путь (`model.onnx`) годится только когда sherpa
+в процессе не живёт.
 
-## Контракт ввода/вывода
+Зависимость Gradle: `org.tensorflow:tensorflow-lite` (новое имя —
+`com.google.ai.edge.litert`), артефакты — в `assets/`. Оба tflite
+проверены парностью с torch (логиты fp32 до 1e-5, сквозная генерация
+совпадает) — см. `train/export_tflite.py`.
+
+## Контракт ввода/вывода (одинаков для tflite и onnx)
 
 ```
 input_ids : int64[1, 128]          // всегда 128, хвост паддится <PAD>
@@ -54,6 +65,20 @@ NEEDS_CLARIFICATION -> END_FRAME
 Автомат гарантирует синтаксически валидный фрейм всегда — невалидный
 вывод невозможен физически, от модели требуется только выбор значений.
 
+Вызов модели через TFLite (Kotlin), один шаг:
+
+```kotlin
+val opts = Interpreter.Options().apply { numThreads = 2 }
+val tflite = Interpreter(loadModelFile("model_int8.tflite"), opts)
+// input: Array<LongArray> формы [1][128] (хвост — padId), output:
+// Array<Array<FloatArray>> формы [1][128][3000]
+val inBuf = arrayOf(LongArray(128).also { seqCopyInto(it, padId) })
+val outBuf = arrayOf(Array(128) { FloatArray(3000) })
+tflite.run(inBuf, outBuf)
+val logits = outBuf[0][seqLen - 1]        // для очередного токена
+val next = allowedIds.maxBy { logits[it] } // argmax по маске автомата
+```
+
 ## Токенизация на устройстве
 
 `tokenizer.json` — стандартный формат HF `tokenizers`: сначала матчинг
@@ -63,9 +88,10 @@ NEEDS_CLARIFICATION -> END_FRAME
 
 ## Ориентиры производительности
 
-- 3.3M параметров, seq <= 128: на средних смартфонах ~1-10 мс на шаг
-  генерации, полный фрейм (7-15 шагов) — десятки мс; fp32 ONNX ~13 МБ,
-  int8 ~4 МБ, RAM < 50 МБ.
+- ~6M параметров, seq = 128 на каждый шаг (KV-кэша нет, контекст
+  пересчитывается целиком — как в ONNX-варианте): полный фрейм
+  (7-15 шагов) — десятки-сотни мс на средних смартфонах; fp32 tflite
+  ~24 МБ, int8 ~7 МБ, RAM < 50 МБ.
 - Текст после STT: можно подавать как есть (модель обучалась на трёх
   стилях регистра/пунктуации); спецтокены не токенизировать текстом —
   только через id.

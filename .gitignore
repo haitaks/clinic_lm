@@ -2,6 +2,7 @@
 data/
 
 # окружение и кэши
+.venv/
 .venv-tr/
 __pycache__/
 *.pyc

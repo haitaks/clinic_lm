@@ -1,13 +1,16 @@
 # Интеграция обученной модели: бэкенд и Android
 
-Всё для интеграции уже подготовлено: модель экспортирована в ONNX с проверкой
-парности (`train/export_onnx.py`), для Android написана инструкция
-(`models/ANDROID_INTEGRATION.md`). Ниже — простейшие пути для обоих случаев.
+Всё для интеграции уже подготовлено: модель экспортирована в ONNX и TFLite
+с проверкой парности (`train/export_onnx.py`, `train/export_tflite.py`),
+для Android написана инструкция (`models/ANDROID_INTEGRATION.md`). Ниже —
+простейшие пути для обоих случаев.
 
 | Файл | Размер | Назначение |
 | :-- | :-- | :-- |
 | `model.pt` | 24 МБ | чекпойнт torch (для бэкенда) |
-| `model.onnx` | 27 МБ | ONNX-экспорт, вход `int64[1,128]`, выход `float32[1,128,V]` |
+| `model.onnx` | 24 МБ | ONNX-экспорт, вход `int64[1,128]`, выход `float32[1,128,V]` |
+| `model.tflite` | 24 МБ | TFLite fp32 — основной вариант для Android (офлайн) |
+| `model_int8.tflite` | 7 МБ | TFLite weight-int8 — то же, компактнее для APK |
 | `tokenizer.json` | 0.3 МБ | ByteLevel BPE + спецтокены (формат HF tokenizers) |
 | `failures_report.md` | — | кейсы, которые модель НЕ обрабатывает (читать до демо) |
 
@@ -62,24 +65,31 @@ ONNX на бэкенде не обязателен — он нужен был д
 Retrofit/Ktor, ноль портирования. Минусы: нужна сеть/сервер, STT-текст
 гоняется по сети.
 
-### Вариант 2 (штатный, офлайн): ONNX Runtime Mobile
+### Вариант 2 (штатный, офлайн): TFLite / LiteRT
 
 Для него всё готово, шаги:
 
-1. Зависимость `com.microsoft.onnxruntime:onnxruntime-android`, файлы
-   `model.onnx` и `tokenizer.json` — в `assets/`.
-2. Сессия — стандартные 3 строки OrtEnvironment API. Контракт: вход
-   `int64[1,128]` (хвост паддится `<PAD>`), выход `float32[1,128,V]`,
-   очередной токен — `logits[0, L-1]`.
+1. Зависимость `org.tensorflow:tensorflow-lite` (или
+   `com.google.ai.edge.litert`), файлы `model_int8.tflite` (или
+   `model.tflite`) и `tokenizer.json` — в `assets/`.
+2. Интерпретатор — стандартные 3 строки TFLite API. Контракт тот же,
+   что у ONNX: вход `int64[1,128]` (хвост паддится `<PAD>`), выход
+   `float32[1,128,V]`, очередной токен — `logits[0, L-1]`.
 3. Токенизатор: либо JNI-обёртка над Rust-`tokenizers`, либо прямая
    реализация BPE на Kotlin по `vocab`+`merges` из json (~200 строк) —
    оба варианта описаны в `ANDROID_INTEGRATION.md`.
 4. Порт `FrameAutomaton` из `train/constrained.py` на Kotlin (~150 строк) —
    это обязательно: именно автомат гарантирует валидный фрейм всегда.
 
-Опционально: int8-квантизация ужмёт 27 МБ до ~7 МБ, но после неё обязательна
-перегонка тестов на парность (в `train/export_onnx.py` есть готовая
-проверка — как шаблон).
+Важно: если в приложении живёт sherpa-onnx (ASR), берите именно TFLite —
+Java-обёртка ONNX Runtime конфликтует с нативной сборкой sherpa по ABI
+(две `libonnxruntime.so` в одном процессе; детали — `../Conclusion.md`).
+Чистый ONNX-путь (`model.onnx` + `com.microsoft.onnxruntime:onnxruntime-android`)
+годится только для приложений без sherpa.
+
+Перегенерация артефактов после переобучения: `train/export_onnx.py`,
+затем `train/export_tflite.py` (второй сам гоняет проверки парности
+логитов и сквозной генерации — упало, значит в APK ничего менять нельзя).
 
 ## На что обратить внимание до демо
 
