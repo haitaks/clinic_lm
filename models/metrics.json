@@ -1,15 +1,35 @@
 {
   "n": 973,
-  "exact": 0.998972250770812,
-  "intent": 1.0,
-  "specialty": 1.0,
-  "time": 1.0,
-  "symptoms_f1": 0.9994861253854059,
+  "exact": 0.9578622816032888,
+  "intent": 0.9958890030832477,
+  "specialty": 0.9958890030832477,
+  "time": 0.9958890030832477,
+  "symptoms_f1": 0.9880095923261379,
   "samples": [
     {
-      "text": "не отменяй, наоборот, хочу к терапевту, в восемь тридцать утра. высыпания. головокружение. пятка болит при ходьбе.",
-      "gold": "<BOOK> <GP> <TIME> T_H08_30 </TIME> <SYMPTOM_RASH> <SYMPTOM_DIZZINESS> <END_FRAME>",
-      "pred": "<BOOK> <GP> <TIME> T_H08_30 </TIME> <SYMPTOM_RASH> <SYMPTOM_HEADACHE> <END_FRAME>"
+      "text": "добрый день, без направления можно записаться?",
+      "gold": "<UNSUPPORTED> <END_FRAME>",
+      "pred": "<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>"
+    },
+    {
+      "text": "здравствуйте, без направления можно записаться?",
+      "gold": "<UNSUPPORTED> <END_FRAME>",
+      "pred": "<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>"
+    },
+    {
+      "text": "есть свободные окна у семейного доктора послезавтра утром головокружение аллергия",
+      "gold": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <SYMPTOM_ALLERGY> <END_FRAME>",
+      "pred": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <END_FRAME>"
+    },
+    {
+      "text": "пометь в моём календаре приём к терапевту, послезавтра утром. Головокружение. Аллергическая реакция.",
+      "gold": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <SYMPTOM_ALLERGY> <END_FRAME>",
+      "pred": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <END_FRAME>"
+    },
+    {
+      "text": "запишите пожалуйста к врачу общей практики послезавтра утром кружится голова аллергия",
+      "gold": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <SYMPTOM_ALLERGY> <END_FRAME>",
+      "pred": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <END_FRAME>"
     }
   ]
 }

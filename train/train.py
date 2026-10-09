@@ -218,15 +218,81 @@ def main():
     print(f"параметров: {count_params(model) / 1e6:.2f}M")
 
     steps = train(model, train_ex, ids, device, args)
+    # torch-directml: повторные чтения одного тензора могут отдавать разные
+    # версии данных (чередование), поэтому tied-параметр (head.weight is
+    # tok.weight) в state_dict расходится под двумя ключами, а load_state_dict
+    # оставляет произвольную копию. Снимаем веса, перечитывая tied-параметр
+    # несколько раз, и выбираем ту версию, чьи ВЫХОДЫ совпадают с живой
+    # моделью; не совпала ни одна — громкий отказ вместо битого файла.
+    sd = {k: v.detach().to("cpu").clone() for k, v in model.state_dict().items()}
+    tied_versions = []
+    for key in ("tok.weight", "head.weight"):
+        ver = sd[key]
+        if not any((ver - v).abs().max().item() == 0.0 for v in tied_versions):
+            tied_versions.append(ver)
+
+    # Арифметика CPU и DirectML расходится на единицы в логитах при равных
+    # весах, поэтому сверяем не числа, а ПОВЕДЕНИЕ: constrained-генерация
+    # фреймов на контрольных фразах у живой модели и у модели из файла
+    # обязана совпасть (тот же критерий, что в проверках export_tflite.py).
+    probe_texts = [r["text"] for r in val_ex_meta[:8]]
+    model.eval()
+    ref_frames = [generate_frame(model, tok, t, device,
+                                 bos=ids[BOS], user=ids[USER],
+                                 assistant=ids[ASSISTANT], eos=ids[EOS],
+                                 pad=ids[PAD])[0] for t in probe_texts]
+    cpu_dev = torch.device("cpu")
+    scored = []
+    for vi, ver in enumerate(tied_versions):
+        cand = dict(sd)
+        cand["tok.weight"] = ver
+        cand["head.weight"] = ver
+        back = TinyGPT(tok.get_vocab_size(), d_model=args.d_model,
+                       n_layers=args.n_layers, n_heads=args.n_heads)
+        back.load_state_dict(cand); back.eval()
+        got = [generate_frame(back, tok, t, cpu_dev,
+                              bos=ids[BOS], user=ids[USER],
+                              assistant=ids[ASSISTANT], eos=ids[EOS],
+                              pad=ids[PAD])[0] for t in probe_texts]
+        n_match = sum(a == b for a, b in zip(got, ref_frames))
+        print(f"tied-версия {vi}: совпало фреймов {n_match}/{len(probe_texts)}")
+        scored.append((n_match, cand))
+    scored.sort(key=lambda x: -x[0])
+    n_match, chosen = scored[0]
+    # недообученный smoke-прогон может колебаться на границе argmax между
+    # устройствами; для полноценно обученной модели совпадение полное
+    assert n_match >= 3 * len(probe_texts) // 4, (
+        f"лучшая tied-версия повторяет живую модель только в {n_match} "
+        f"из {len(probe_texts)} фреймов — снятие весов с DirectML "
+        "ненадёжно в этом прогоне")
+    if n_match < len(probe_texts):
+        print(f"предупреждение: {len(probe_texts) - n_match} фрейм(а) "
+              "разошлись между CPU и DirectML (недообученность/порог argmax)")
+
     out = ROOT / args.save
-    torch.save({"model": model.state_dict(),
+    torch.save({"model": chosen,
                 "config": {"d_model": args.d_model, "n_layers": args.n_layers,
                            "n_heads": args.n_heads}}, out)
     print(f"сохранено: {out} (шагов: {steps})")
 
+    # самопроверка: чекпойнт с диска обязан повторять живую модель
+    back = TinyGPT(tok.get_vocab_size(), d_model=args.d_model,
+                   n_layers=args.n_layers, n_heads=args.n_heads)
+    back.load_state_dict(torch.load(out, map_location="cpu",
+                                    weights_only=False)["model"])
+    back.eval()
+    got = [generate_frame(back, tok, t, cpu_dev,
+                          bos=ids[BOS], user=ids[USER],
+                          assistant=ids[ASSISTANT], eos=ids[EOS],
+                          pad=ids[PAD])[0] for t in probe_texts]
+    n_match = sum(a == b for a, b in zip(got, ref_frames))
+    print(f"самопроверка чекпойнта: совпало фреймов {n_match}/{len(probe_texts)}")
+    assert n_match >= 3 * len(probe_texts) // 4, (
+        "чекпойнт на диске не повторяет живую модель")
+
     val_limit = 300 if (args.smoke or args.limit) else 0
-    metrics = evaluate(model, tok, ids, device, val_ex_meta, limit=val_limit,
-                       verbose=True)
+    metrics = evaluate(back, tok, ids, cpu_dev, val_ex_meta,
+                       limit=val_limit, verbose=True)
     print("\n=== val метрики ===")
     for k in ("exact", "intent", "specialty", "time", "symptoms_f1"):
         print(f"  {k:12s} {metrics[k]:.3f}")

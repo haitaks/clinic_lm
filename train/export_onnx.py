@@ -12,6 +12,7 @@
   и argmax; повторять до <END_FRAME>/<EOS>.
 """
 
+import inspect
 import sys
 from pathlib import Path
 
@@ -51,13 +52,16 @@ def main():
     dummy = torch.randint(0, tok.get_vocab_size(), (1, 128), dtype=torch.long)
     out_path = ROOT / "models" / "model.onnx"
     (ROOT / "models" / "model.onnx.data").unlink(missing_ok=True)  # сайдкар
-    torch.onnx.export(
-        wrapper, dummy, str(out_path),
+    # один файл: веса инлайном, без model.onnx.data. external_data появился
+    # в torch 2.5; в 2.4 сайдкар и так не создаётся для моделей < 2 ГБ
+    export_kwargs = dict(
         input_names=["input_ids"],
         output_names=["logits"],
         opset_version=17,
-        external_data=False,   # один файл: веса инлайном, без model.onnx.data
     )
+    if "external_data" in inspect.signature(torch.onnx.export).parameters:
+        export_kwargs["external_data"] = False
+    torch.onnx.export(wrapper, dummy, str(out_path), **export_kwargs)
     print(f"экспортировано: {out_path} "
           f"({out_path.stat().st_size / 1e6:.1f} МБ, вход [1,128])")
     # torch.onnx.export может оставить модуль в train-режиме -> dropout

@@ -4,6 +4,7 @@ data/
 # окружение и кэши
 .venv/
 .venv-tr/
+.venv-tf/
 __pycache__/
 *.pyc
 

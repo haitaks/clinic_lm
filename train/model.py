@@ -32,17 +32,15 @@ class MultiheadSelfAttention(nn.Module):
                .reshape(B, T, 3, self.h, self.dh).permute(2, 0, 3, 1, 4))
         q, k, v = qkv[0], qkv[1], qkv[2]          # [B, h, T, dh]
         att = (q @ k.transpose(-2, -1)) / math.sqrt(self.dh)
-        att = att.masked_fill(causal, float("-inf"))
+        # -1e9 вместо -inf: exp(-1e9) == 0.0 в fp32, ключи-паддинг получают
+        # нулевое внимание, но в графе нет inf и нет nan_to_num. Полностью
+        # замаскированных строк не бывает (правый паддинг, BOS первый),
+        # softmax конечен всегда. Семантика 1:1 с TF-зеркалом export_tflite.
+        NEG_MASK = -1e9
+        att = att.masked_fill(causal, NEG_MASK)
         if pad_mask is not None:                   # ключи-паддинг не видны
-            att = att.masked_fill(pad_mask[:, None, None, :], float("-inf"))
+            att = att.masked_fill(pad_mask[:, None, None, :], NEG_MASK)
         att = att.softmax(dim=-1)
-        if pad_mask is not None:
-            # полностью замаскированные строки (запросы на паддинге) дают
-            # NaN после softmax; зануляем, чтобы NaN не полз в градиенты.
-            # На инференсе (pad_mask=None) NaN невозможен (каузальная маска
-            # всегда оставляет >=1 видимый ключ), а nan_to_num портит
-            # экспорт: ONNX IsNaN/IsInf не исполняются TFLite-рантаймом.
-            att = torch.nan_to_num(att, 0.0)
         att = self.drop(att)
         out = (att @ v).transpose(1, 2).reshape(B, T, C)
         return self.proj(out)
