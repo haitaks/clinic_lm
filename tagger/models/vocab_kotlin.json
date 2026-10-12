@@ -464,6 +464,33 @@
    "T_TUE",
    "T_MORNING"
   ],
+  "на завтра": [
+   "T_TOMORROW"
+  ],
+  "на послезавтра": [
+   "T_DAY_AFTER_TOMORROW"
+  ],
+  "на понедельник": [
+   "T_MON"
+  ],
+  "на вторник": [
+   "T_TUE"
+  ],
+  "на среду": [
+   "T_WED"
+  ],
+  "на четверг": [
+   "T_THU"
+  ],
+  "на пятницу": [
+   "T_FRI"
+  ],
+  "на субботу": [
+   "T_SAT"
+  ],
+  "на воскресенье": [
+   "T_SUN"
+  ],
   "в 8:00": [
    "T_H08_00"
   ],
@@ -800,6 +827,120 @@
   "на следующей неделе",
   "на выходных"
  ],
+ "routing": {
+  "sym_to_specs": {
+   "fever": [
+    "gp"
+   ],
+   "sore_throat": [
+    "ent",
+    "gp"
+   ],
+   "cough": [
+    "ent",
+    "gp"
+   ],
+   "headache": [
+    "gp",
+    "gynecologist",
+    "neurologist",
+    "ophthalmologist"
+   ],
+   "stomach_pain": [
+    "gp",
+    "gynecologist",
+    "surgeon"
+   ],
+   "back_pain": [
+    "gp",
+    "neurologist",
+    "surgeon"
+   ],
+   "dizziness": [
+    "gp",
+    "neurologist"
+   ],
+   "allergy": [
+    "dermatologist",
+    "ent",
+    "gp"
+   ],
+   "rash": [
+    "dermatologist",
+    "gp"
+   ],
+   "eye_pain": [
+    "gp",
+    "ophthalmologist"
+   ],
+   "toothache": [
+    "dentist"
+   ],
+   "anxiety": [
+    "psychologist"
+   ],
+   "insomnia": [
+    "psychologist"
+   ]
+  },
+  "sym_priority": {
+   "headache": [
+    "neurologist",
+    "gp",
+    "ophthalmologist",
+    "gynecologist"
+   ],
+   "stomach_pain": [
+    "gp",
+    "surgeon",
+    "gynecologist"
+   ],
+   "back_pain": [
+    "neurologist",
+    "surgeon",
+    "gp"
+   ],
+   "eye_pain": [
+    "ophthalmologist",
+    "gp"
+   ],
+   "rash": [
+    "dermatologist",
+    "gp"
+   ],
+   "allergy": [
+    "dermatologist",
+    "ent",
+    "gp"
+   ],
+   "sore_throat": [
+    "ent",
+    "gp"
+   ],
+   "cough": [
+    "ent",
+    "gp"
+   ],
+   "fever": [
+    "gp"
+   ],
+   "dizziness": [
+    "neurologist",
+    "gp"
+   ]
+  },
+  "spec_tokens": {
+   "gp": "<GP>",
+   "dentist": "<DENTIST>",
+   "dermatologist": "<DERMATOLOGIST>",
+   "gynecologist": "<GYNECOLOGIST>",
+   "ophthalmologist": "<OPHTHALMOLOGIST>",
+   "neurologist": "<NEUROLOGIST>",
+   "psychologist": "<PSYCHOLOGIST>",
+   "surgeon": "<SURGEON>",
+   "ent": "<ENT>"
+  }
+ },
  "tags": [
   "O",
   "SPEC",

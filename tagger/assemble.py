@@ -85,11 +85,31 @@ def time_factors(surface: str) -> list[str] | None:
             if _time_cat(t) not in seen_cat:
                 factors.append(t)
                 seen_cat.add(_time_cat(t))
-    return factors or None
+    # финальный фолбэк: голый числовой слот с любым предлогом
+    # («к 8:30», «около 15:00») — важен сам слот, а не предлог.
+    # Добавляется и когда фразовый поиск уже что-то нашёл, но
+    # категорию time не покрыл («на послезавтра к 8:30»)
+    from vocab import TIME_SLOTS, _SLOT_RE
+
+    def _slot_token():
+        m = _SLOT_RE.search(key)
+        if not m:
+            return None
+        h, mm = int(m.group(1)), int(m.group(2))
+        tok = f"T_H{h:02d}_{mm:02d}"
+        return tok if tok in TIME_SLOTS else None
+
+    if factors:
+        tok = _slot_token()
+        if tok and all(_time_cat(f) != "time" for f in factors):
+            factors.append(tok)
+        return factors
+    tok = _slot_token()
+    return [tok] if tok else None
 
 
 def assemble(intent: str, spec_keys: list[str], sym_keys: list[str],
-             time_text: str | None) -> str:
+             time_text: str | None, factors: list[str] | None = None) -> str:
     if intent == "unsupported":
         return "<UNSUPPORTED> <END_FRAME>"
     parts = [f"<{intent.upper()}>"]
@@ -105,7 +125,8 @@ def assemble(intent: str, spec_keys: list[str], sym_keys: list[str],
         # reschedule/cancel без специальности — никогда
         if intent == "book":
             clarif = True
-    factors = time_factors(time_text) if time_text else None
+    factors = factors if factors is not None else \
+        (time_factors(time_text) if time_text else None)
     if factors:
         parts.append("<TIME> " + " ".join(factors) + " </TIME>")
     else:
@@ -176,16 +197,37 @@ def frame_from_tags(text: str, ids, tags, intent_ix: int,
         intent = "book"
     # после ревизии интента словарное время безопасно: у негативов
     # ("какая завтра погода") интент остался unsupported и время
-    # не мержится; для book/reschedule/cancel фразы времени настоящие
-    if intent != "unsupported" and not times:
-        from vocab import TEMPORAL_FACTORS as _TF
+    # не мержится; для book/reschedule/cancel фразы времени настоящие.
+    # Добавляем найденное, если оно НЕ покрыто модельными TIME-спанами:
+    # разнесённые куски («на послезавтра» + «к 8:30») объединяются
+    if intent != "unsupported":
+        from vocab import TEMPORAL_FACTORS as _TF, _SLOT_RE
+        covered = [(s, e) for s, e, t, _ in spans if t == "TIME"]
+
+        def add_span(start, end):
+            if any(start < e2 and s2 < end for s2, e2 in covered):
+                return False
+            covered.append((start, end))
+            times.append(text[start:end])
+            return True
+
         for phrase in sorted(_TF, key=len, reverse=True):
             m = needle_re(phrase).search(fold(text))
-            if m:
-                times.append(text[m.start():m.end()])
-                break
-    time_text = times[0] if times else None
-    return assemble(intent, specs, syms, time_text)
+            if m and add_span(m.start(), m.end()):
+                break                                   # одна фраза
+        for m in _SLOT_RE.finditer(fold(text)):         # + числовой слот
+            add_span(m.start(), m.end())
+    # все TIME-спаны объединяются (разнесённые куски: «на послезавтра»
+    # + «к 8:30»); факторы мержатся по категориям scope -> day -> time
+    all_factors, seen_cat = [], set()
+    for t_text in times:
+        for f in (time_factors(t_text) or []):
+            if _time_cat(f) not in seen_cat:
+                all_factors.append(f)
+                seen_cat.add(_time_cat(f))
+    return assemble(intent, specs, syms,
+                    times[0] if times else None,
+                    factors=all_factors or None)
 
 
 def spans_from_tags(text: str, tags, tok):

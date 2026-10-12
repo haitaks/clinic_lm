@@ -134,14 +134,28 @@ def main():
               f"{stats['symptoms_f1'] / n:6.3f}   "
               f"{ref[0]:.3f}/{ref[1]:.3f}/{ref[2]:.3f}")
 
-    print("\nдемо-фразы:")
+    print("\nдемо-фразы (+ рекомендация врача по симптомам, если "
+          "специальность не названа):")
+    from routing import route_from_frame
+    from vocab import SPECIALTIES
+    names = {"ru": {k: v["token"] for k, v in SPECIALTIES.items()}}
     for text in ("отмени все мои записи",
                  "запишите меня к зубному в следующую пятницу вечером, зуб ноет",
+                 "поменяйте время записи к психотерапевту на пятницу вечером",
+                 "перенесите приём на послезавтра к 8:30",
                  "у меня болит голова",
+                 "болит глаз и голова, запишите к врачу",
                  "надо к кожнику попасть, чешется всё",
                  "какая завтра погода в Москве"):
-        print(f"  {text[:52]:54s} -> "
-              f"{predict_frame(model, tok, text, dev, resolver)}")
+        frame = predict_frame(model, tok, text, dev, resolver)
+        line = f"  {text[:44]:46s} -> {frame}"
+        print(line)
+        r = route_from_frame(frame)
+        if r:
+            alts = ", ".join(SPECIALTIES[a]["token"] for a in r["alternatives"])
+            print(f"      врач по симптомам {r['symptoms']}: "
+                  f"{r['primary_token']}"
+                  + (f" (альтернативы: {alts})" if alts else ""))
 
 
 if __name__ == "__main__":

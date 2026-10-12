@@ -212,8 +212,8 @@
    ],
    "expected_intent": "book",
    "expected_tags": [
-    "SPEC",
-    "SPEC",
+    "O",
+    "O",
     "TIME",
     "TIME",
     "TIME",
@@ -229,7 +229,7 @@
     "O",
     "O"
    ],
-   "expected_frame": "<BOOK> <SURGEON> <TIME> T_AMBIG </TIME> <END_FRAME>"
+   "expected_frame": "<BOOK> <SURGEON> <TIME> T_AMBIG T_TOMORROW </TIME> <END_FRAME>"
   },
   {
    "text": "отмени все мои записи",
@@ -477,11 +477,11 @@
     "TIME",
     "TIME",
     "O",
-    "TIME",
-    "TIME",
-    "SYM",
-    "TIME",
-    "TIME"
+    "O",
+    "O",
+    "O",
+    "O",
+    "O"
    ],
    "expected_frame": "<BOOK> <NEUROLOGIST> <TIME> T_SOON </TIME> <END_FRAME>"
   },
@@ -723,7 +723,7 @@
     "O",
     "O",
     "O",
-    "O",
+    "TIME",
     "TIME",
     "O",
     "O"

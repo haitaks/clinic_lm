@@ -261,6 +261,71 @@ private fun IntRange.intersects(o: IntRange) = first <= o.last && o.first <= las
 `tokenizers` даёт offsets; в `BpeTokenizer` из основного гайда добавьте
 сохранение `enc.offsets`).
 
+### 3.3. Routing «симптомы → врач» (рекомендация при UNKNOWN_SPECIALTY)
+
+Если фрейм вернул `<UNKNOWN_SPECIALTY>` и есть симптомы — UI получает
+рекомендацию: первичный врач + альтернативы. Логика (референс
+`tagger/routing.py`, данные в `vocab_kotlin.json` → `routing`):
+пересечение списков симптомов («боль в глазу + голова» → офтальмолог),
+при пустом пересечении — голосование по объединению, порядок — таблица
+приоритетов `sym_priority` (точка настройки под клинику), gp — дефолт.
+Для cancel рекомендации не показываются.
+
+```kotlin
+object SymptomRouter {
+    private lateinit var symToSpecs: Map<String, List<String>>
+    private lateinit var prio: Map<String, List<String>>
+    private lateinit var tokens: Map<String, String>
+    private lateinit var symKeyByToken: Map<String, String>
+    private lateinit var profileSize: Map<String, Int>   // спец -> n симптомов
+
+    fun init(vocab: JSONObject) {
+        val r = vocab.getJSONObject("routing")
+        symToSpecs = r.getJSONObject("sym_to_specs").keys().associateWith {
+            val a = r.getJSONObject("sym_to_specs").getJSONArray(it)
+            List(a.length()) { i -> a.getString(i) } }
+        prio = r.getJSONObject("sym_priority").keys().associateWith {
+            val a = r.getJSONObject("sym_priority").getJSONArray(it)
+            List(a.length()) { i -> a.getString(i) } }
+        tokens = r.getJSONObject("spec_tokens").keys().associateWith {
+            it to r.getJSONObject("spec_tokens").getString(it) }
+        symKeyByToken = buildMap {
+            val sym = vocab.getJSONObject("sym")
+            sym.keys().forEach { k ->
+                put(sym.getJSONObject(k).getString("token"), k) }
+        }
+        profileSize = symToSpecs.values.flatten().groupingBy { it }.eachCount()
+    }
+
+    /** symKeys — канон-ключи симптомов (не токены). */
+    fun route(symKeys: List<String>): Pair<String, List<String>>? {
+        if (symKeys.isEmpty()) return null
+        val sets = symKeys.map { symToSpecs[it]?.toSet() ?: emptySet() }
+        val inter = sets.reduce { a, b -> a intersect b }
+        val pool = if (inter.isNotEmpty()) inter
+                   else sets.reduce { a, b -> a union b }
+        val p = prio[symKeys.first()] ?: emptyList()
+        val ordered = pool.sortedWith(compareBy(
+            { s -> if (s in p) p.indexOf(s)
+                   else p.size + if (s == "gp") 1 else 0 },
+            { profileSize[it] ?: 0 }))
+        return ordered.first() to ordered.drop(1)
+    }
+
+    /** Фрейм-строка -> (primaryToken, altTokens); null — рекомендация
+     *  неуместна (специальность названа / cancel / нет симптомов). */
+    fun fromFrame(frame: String): Pair<String, List<String>>? {
+        val t = frame.split(" ")
+        if (t.size < 2 || t[0] !in setOf("<BOOK>", "<RESCHEDULE>")) return null
+        if (t[1] != "<UNKNOWN_SPECIALTY>") return null
+        val keys = t.mapNotNull { symKeyByToken[it] }
+        if (keys.isEmpty()) return null
+        val (p, alts) = route(keys) ?: return null
+        return (tokens[p] ?: p) to alts.map { tokens[it] ?: it }
+    }
+}
+```
+
 ## 4. Юнит-тест
 
 `kotlin_vectors.json`: для каждого кейса `bpe_ids` (токенизатор),

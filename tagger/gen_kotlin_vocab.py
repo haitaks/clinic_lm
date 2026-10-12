@@ -19,9 +19,33 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "synth"))
 
 from vocab import (SPECIALTIES, SYMPTOMS, TEMPORAL_ENTRIES,  # noqa: E402
-                   TIME_SCOPE, TIME_DAY, TIME_TIME, AMBIG_DAY_SURFACES)
+                   TIME_SCOPE, TIME_DAY, TIME_TIME, AMBIG_DAY_SURFACES,
+                   PLAUSIBLE)
 
 OUT = Path(__file__).resolve().parent / "models"
+
+# порядок предложения врачей для неоднозначных симптомов (настройка
+# под клинику; дублирует tagger/routing.py:SYM_PRIORITY)
+SYM_PRIORITY = {
+    "headache": ["neurologist", "gp", "ophthalmologist", "gynecologist"],
+    "stomach_pain": ["gp", "surgeon", "gynecologist"],
+    "back_pain": ["neurologist", "surgeon", "gp"],
+    "eye_pain": ["ophthalmologist", "gp"],
+    "rash": ["dermatologist", "gp"],
+    "allergy": ["dermatologist", "ent", "gp"],
+    "sore_throat": ["ent", "gp"],
+    "cough": ["ent", "gp"],
+    "fever": ["gp"],
+    "dizziness": ["neurologist", "gp"],
+}
+
+
+def _invert(plausible):
+    out = {}
+    for spec, symptoms in plausible.items():
+        for sym in symptoms:
+            out.setdefault(sym, []).append(spec)
+    return out
 
 
 def main():
@@ -51,6 +75,16 @@ def main():
             "time": sorted(TIME_TIME),
         },
         "ambig_day_surfaces": AMBIG_DAY_SURFACES,
+        # routing «симптом -> врач»: матрица (симптом -> специальности,
+        # у которых он в профиле) + приоритеты неоднозначных случаев;
+        # первичный кандидат = первый по таблице приоритетов, gp —
+        # дефолт. Референс-логика: tagger/routing.py
+        "routing": {
+            "sym_to_specs": {sym: sorted(specs)
+                             for sym, specs in _invert(PLAUSIBLE).items()},
+            "sym_priority": SYM_PRIORITY,
+            "spec_tokens": {k: v["token"] for k, v in SPECIALTIES.items()},
+        },
         "tags": ["O", "SPEC", "SYM", "TIME"],
         "intents": ["book", "reschedule", "cancel", "unsupported"],
     }
