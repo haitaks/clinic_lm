@@ -6,10 +6,13 @@
 - у каждой специальности/симптома есть train-набор синонимов и hold-out
   набор "ood" — он используется ТОЛЬКО в OOD-тесте, чтобы проверить,
   что модель выучила понятие, а не конкретные слова;
-- временные фразы (TEMPORALS) не содержат цифр и знаков препинания:
-  STT-вариант "без пунктуации" не должен ломать копирование слота
-  `<TIME> ... </TIME>` вербатим.
+- числовые временные слоты («в 15:45») — исключение из правила «без
+  цифр»: GigaAM выдаёт числа, и STT-вариант "без пунктуации" должен
+  их переживать (двоеточие вырезается, но цифры остаются — валидатор
+  матчит по границам слов, цифры не ломают).
 """
+
+import re
 
 INTENT_TOKENS = {
     "book": "<BOOK>",
@@ -205,7 +208,10 @@ REQUESTS = {
                    "перенесите запись", "нужно поменять время записи",
                    "хочу сдвинуть приём"],
     "cancel": ["отмените запись", "хочу отменить запись",
-               "запись нужно отменить", "хочу отменить приём"],
+               "запись нужно отменить", "хочу отменить приём",
+               # короткие формы повелительного наклонения («отмени
+               # все мои записи») — живая речь, раньше дыра покрытия
+               "отмени запись", "отмени мою запись", "отмени приём"],
 }
 
 GREETINGS = ["здравствуйте", "добрый день", "доброе утро", "добрый вечер", "привет"]
@@ -232,6 +238,54 @@ UNLABELED_COMPLAINTS = [
 #       для запроса к бэкенду (таблица "фраза -> факторы" и есть парсер).
 # Порядок факторов в слоте: ОБЛАСТЬ -> ДЕНЬ -> ВРЕМЯ, максимум по одному
 # из каждой категории (проверяет self_check).
+# Сетка слотов приёма: 8:00-20:45 с шагом 15 минут. Каждый слот —
+# один фактор-токен T_H{HH}_{MM} (закрытый словарь = расписание клиники;
+# часы и минуты раздельно не нужны — слоты дискретны, комбинации
+# невалидны по построению). Числовые поверхности — для всех слотов
+# (GigaAM выдаёт цифры), словесные — для :00/:30 по образцу живой речи.
+def _slot_token(h, m):
+    return f"T_H{h:02d}_{m:02d}"
+
+
+HOUR_WORDS = {8: "восемь", 9: "девять", 10: "десять", 11: "одиннадцать",
+              13: "час", 14: "два", 15: "три", 16: "четыре", 17: "пять",
+              18: "шесть", 19: "семь", 20: "восемь"}
+
+
+def _part_of_day(h):
+    if h < 12:
+        return "утра"
+    if h < 17:
+        return "дня"
+    return "вечера"
+
+
+def _gen_slot_entries():
+    out = []
+    for h in range(8, 21):
+        for m in (0, 15, 30, 45):
+            tok = _slot_token(h, m)
+            out.append({"text": f"в {h}:{m:02d}", "factors": [tok]})
+            if h == 12:
+                if m == 0:
+                    out.append({"text": "в полдень", "factors": [tok]})
+                continue
+            if h in HOUR_WORDS:
+                w = HOUR_WORDS[h]
+                if m == 0:
+                    text = (f"в {w} часа дня" if 14 <= h <= 16
+                            else f"в {w} {_part_of_day(h)}")
+                    out.append({"text": text, "factors": [tok]})
+                elif m == 30:
+                    out.append({"text": f"в {w} тридцать {_part_of_day(h)}",
+                                "factors": [tok]})
+    return out
+
+
+TIME_SLOTS = {_slot_token(h, m) for h in range(8, 21) for m in (0, 15, 30, 45)}
+SLOT_SURFACES = [f"в {h}:{m:02d}" for h in range(8, 21)
+                 for m in (0, 15, 30, 45)]
+
 TEMPORAL_ENTRIES = [
     # базовые дни
     {"text": "сегодня", "factors": ["T_TODAY"]},
@@ -278,32 +332,16 @@ TEMPORAL_ENTRIES = [
     {"text": "вечером", "factors": ["T_EVENING"]},
     {"text": "ближе к вечеру", "factors": ["T_EVENING"]},
     {"text": "пораньше", "factors": ["T_EARLY"]},
-    {"text": "в полдень", "factors": ["T_MIDDAY"]},
     {"text": "до обеда", "factors": ["T_BEFORE_NOON"]},
     {"text": "после обеда", "factors": ["T_AFTER_NOON"]},
     {"text": "в первой половине дня", "factors": ["T_BEFORE_NOON"]},
     {"text": "после шести", "factors": ["T_AFTER_18"]},
     {"text": "после работы", "factors": ["T_AFTER_WORK"]},
     {"text": "после смены", "factors": ["T_AFTER_SHIFT"]},
-    # абсолютное время словами (из MASSIVE)
-    {"text": "в восемь утра", "factors": ["T_H08_00"]},
-    {"text": "в восемь тридцать утра", "factors": ["T_H08_30"]},
-    {"text": "в девять утра", "factors": ["T_H09_00"]},
-    {"text": "в девять тридцать утра", "factors": ["T_H09_30"]},
-    {"text": "в десять утра", "factors": ["T_H10_00"]},
-    {"text": "в одиннадцать утра", "factors": ["T_H11_00"]},
-    {"text": "в час дня", "factors": ["T_H13_00"]},
-    {"text": "в два часа дня", "factors": ["T_H14_00"]},
-    {"text": "в три часа дня", "factors": ["T_H15_00"]},
-    {"text": "в четыре часа дня", "factors": ["T_H16_00"]},
-    {"text": "в пять вечера", "factors": ["T_H17_00"]},
-    {"text": "в пять тридцать вечера", "factors": ["T_H17_30"]},
-    {"text": "в шесть вечера", "factors": ["T_H18_00"]},
-    {"text": "в шесть тридцать вечера", "factors": ["T_H18_30"]},
-    {"text": "в семь вечера", "factors": ["T_H19_00"]},
-    {"text": "в восемь вечера", "factors": ["T_H20_00"]},
-    {"text": "в девять вечера", "factors": ["T_H21_00"]},
-    {"text": "в десять вечера", "factors": ["T_H22_00"]},
+    # сетка слотов клиники: 8:00-20:45 шаг 15 минут (см. _gen_slot_entries
+    # ниже): числовые поверхности для всех слотов, словесные для :00/:30.
+    # Конкретный слот = один фактор-токен: словарь закрытый, комбинации
+    # часов и минут раздельно не нужны — расписание клиники дискретно.
     # комбинации день + время
     {"text": "завтра утром", "factors": ["T_TOMORROW", "T_MORNING"]},
     {"text": "завтра с утра", "factors": ["T_TOMORROW", "T_MORNING"]},
@@ -326,12 +364,45 @@ TEMPORAL_ENTRIES = [
      "factors": ["T_NEXT_WEEK", "T_FRI", "T_EVENING"]},
     {"text": "в следующий вторник утром",
      "factors": ["T_NEXT_WEEK", "T_TUE", "T_MORNING"]},
-]
+] + _gen_slot_entries()
 
 TEMPORALS = [e["text"] for e in TEMPORAL_ENTRIES]
 # ключи с фолдингом ё->е: текст может содержать "днем", словарь — "днём"
 TEMPORAL_FACTORS = {e["text"].replace("ё", "е"): e["factors"]
                     for e in TEMPORAL_ENTRIES}
+
+# Числовой слот в тексте: «15:00», «9.30», «в 9 45» (STT-варианты).
+_SLOT_RE = re.compile(r"\b([0-9]|1[0-9]|2[0-3])[:. ]([0-5]\d)\b")
+
+# Дневные поверхности для альтернативного времени «завтра в 15:00 или
+# в 16:00»: фактор дня + T_AMBIG (конкретный слот не выбирается моделью,
+# UI должен предложить оба).
+AMBIG_DAY_SURFACES = ["завтра", "сегодня", "послезавтра", "в понедельник",
+                      "во вторник", "в среду", "в четверг", "в пятницу",
+                      "в субботу", "в воскресенье", "на следующей неделе",
+                      "на выходных"]
+
+
+def temporal_factors_of(phrase):
+    """Единый парсер времени для генератора и инференса: точная таблица,
+    затем «или»-альтернативы -> факторы дня + T_AMBIG."""
+    key = phrase.replace("ё", "е")
+    if key in TEMPORAL_FACTORS:
+        return tuple(TEMPORAL_FACTORS[key])
+    if " или " in key:
+        left, right = key.split(" или ", 1)
+        m = _SLOT_RE.search(left)
+        if m and _SLOT_RE.search(right):
+            day_part = left[:m.start()].strip().rstrip(",")
+            # отрезать висячие предлоги («завтра в» -> «завтра»)
+            words = day_part.split()
+            while words and words[-1] in ("в", "к", "на", "около",
+                                          "после", "до", "под"):
+                words.pop()
+            day_part = " ".join(words)
+            day = tuple(TEMPORAL_FACTORS.get(day_part, ())) if day_part else ()
+            return day + ("T_AMBIG",)
+    return ()
 
 # Категории фактор-токенов (порядок в слоте: scope -> day -> time).
 TIME_SCOPE = {"T_THIS_WEEK", "T_NEXT_WEEK", "T_WEEKEND",
@@ -339,13 +410,9 @@ TIME_SCOPE = {"T_THIS_WEEK", "T_NEXT_WEEK", "T_WEEKEND",
 TIME_DAY = {"T_TODAY", "T_TOMORROW", "T_DAY_AFTER_TOMORROW", "T_IN_2_DAYS",
             "T_IN_3_DAYS", "T_IN_WEEK", "T_IN_2_WEEKS", "T_IN_MONTH",
             "T_MON", "T_TUE", "T_WED", "T_THU", "T_FRI", "T_SAT", "T_SUN"}
-TIME_TIME = {"T_MORNING", "T_AFTERNOON", "T_EVENING", "T_EARLY", "T_MIDDAY",
+TIME_TIME = {"T_MORNING", "T_AFTERNOON", "T_EVENING", "T_EARLY",
              "T_BEFORE_NOON", "T_AFTER_NOON", "T_AFTER_18", "T_AFTER_WORK",
-             "T_AFTER_SHIFT", "T_SOON",
-             "T_H08_00", "T_H08_30", "T_H09_00", "T_H09_30", "T_H10_00",
-             "T_H11_00", "T_H13_00", "T_H14_00", "T_H15_00", "T_H16_00",
-             "T_H17_00", "T_H17_30", "T_H18_00", "T_H18_30", "T_H19_00",
-             "T_H20_00", "T_H21_00", "T_H22_00"}
+             "T_AFTER_SHIFT", "T_SOON"} | TIME_SLOTS
 TIME_FACTORS = TIME_SCOPE | TIME_DAY | TIME_TIME
 
 # Пулы для UNSUPPORTED: почти-доменные запросы, которые записью не являются.

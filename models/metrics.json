@@ -1,35 +1,35 @@
 {
-  "n": 973,
-  "exact": 0.9578622816032888,
-  "intent": 0.9958890030832477,
-  "specialty": 0.9958890030832477,
-  "time": 0.9958890030832477,
-  "symptoms_f1": 0.9880095923261379,
+  "n": 945,
+  "exact": 0.8867724867724868,
+  "intent": 0.9968253968253968,
+  "specialty": 0.9947089947089947,
+  "time": 0.9968253968253968,
+  "symptoms_f1": 0.9798941798941786,
   "samples": [
     {
-      "text": "добрый день, без направления можно записаться?",
-      "gold": "<UNSUPPORTED> <END_FRAME>",
-      "pred": "<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>"
+      "text": "есть свободные окна у гинеколога после обеда? живот болит.",
+      "gold": "<BOOK> <GYNECOLOGIST> <TIME> T_AFTER_NOON </TIME> <SYMPTOM_STOMACH_PAIN> <END_FRAME>",
+      "pred": "<BOOK> <GYNECOLOGIST> <TIME> T_AFTER_NOON </TIME> <SYMPTOM_STOMACH_PAIN> <SYMPTOM_HEADACHE> <END_FRAME>"
     },
     {
-      "text": "здравствуйте, без направления можно записаться?",
-      "gold": "<UNSUPPORTED> <END_FRAME>",
-      "pred": "<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>"
+      "text": "Офтальмолог.",
+      "gold": "<BOOK> <OPHTHALMOLOGIST> <T_UNKNOWN> <END_FRAME>",
+      "pred": "<UNSUPPORTED> <END_FRAME>"
     },
     {
-      "text": "есть свободные окна у семейного доктора послезавтра утром головокружение аллергия",
-      "gold": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <SYMPTOM_ALLERGY> <END_FRAME>",
-      "pred": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <END_FRAME>"
+      "text": "не отменяй, наоборот, хочу к психотерапевту, в следующую пятницу. тревожно. не могу уснуть.",
+      "gold": "<BOOK> <PSYCHOLOGIST> <TIME> T_NEXT_WEEK T_FRI </TIME> <SYMPTOM_ANXIETY> <SYMPTOM_INSOMNIA> <END_FRAME>",
+      "pred": "<BOOK> <PSYCHOLOGIST> <TIME> T_NEXT_WEEK T_FRI </TIME> <SYMPTOM_INSOMNIA> <SYMPTOM_ANXIETY> <END_FRAME>"
     },
     {
-      "text": "пометь в моём календаре приём к терапевту, послезавтра утром. Головокружение. Аллергическая реакция.",
-      "gold": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <SYMPTOM_ALLERGY> <END_FRAME>",
-      "pred": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <END_FRAME>"
+      "text": "не отменяй наоборот хочу к психотерапевту в следующую пятницу тревога бессонница",
+      "gold": "<BOOK> <PSYCHOLOGIST> <TIME> T_NEXT_WEEK T_FRI </TIME> <SYMPTOM_ANXIETY> <SYMPTOM_INSOMNIA> <END_FRAME>",
+      "pred": "<BOOK> <PSYCHOLOGIST> <TIME> T_NEXT_WEEK T_FRI </TIME> <SYMPTOM_INSOMNIA> <SYMPTOM_ANXIETY> <END_FRAME>"
     },
     {
-      "text": "запишите пожалуйста к врачу общей практики послезавтра утром кружится голова аллергия",
-      "gold": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <SYMPTOM_ALLERGY> <END_FRAME>",
-      "pred": "<BOOK> <GP> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <SYMPTOM_DIZZINESS> <END_FRAME>"
+      "text": "тревога не могу уснуть хотел бы попасть на приём к психотерапевту в следующую пятницу",
+      "gold": "<BOOK> <PSYCHOLOGIST> <TIME> T_NEXT_WEEK T_FRI </TIME> <SYMPTOM_ANXIETY> <SYMPTOM_INSOMNIA> <END_FRAME>",
+      "pred": "<BOOK> <PSYCHOLOGIST> <TIME> T_NEXT_WEEK T_FRI </TIME> <SYMPTOM_INSOMNIA> <END_FRAME>"
     }
   ]
 }

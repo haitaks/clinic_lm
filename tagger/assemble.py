@@ -59,12 +59,17 @@ def _time_cat(tok: str) -> str:
 
 
 def time_factors(surface: str) -> list[str] | None:
-    """Текст TIME-спана -> фактор-токены. Точный матч по таблице;
-    если спан чуть шире (тег протянут) — ищем известные фразы внутри
-    и объединяем факторы по правилу категорий scope -> day -> time."""
+    """Текст TIME-спана -> фактор-токены. Порядок: точная таблица,
+    «или»-альтернатива (день + T_AMBIG), затем поиск известных фраз
+    внутри спана (тег мог быть протянут шире фразы)."""
     key = fold(surface.strip())
     if key in TEMPORAL_FACTORS:
         return TEMPORAL_FACTORS[key]
+    from vocab import temporal_factors_of
+    if " или " in key:
+        facs = list(temporal_factors_of(key))
+        if facs:
+            return facs
     f = fold(surface)
     found = []
     for phrase in sorted(TEMPORAL_FACTORS, key=len, reverse=True):

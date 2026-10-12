@@ -14,19 +14,15 @@ import torch
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "synth"))
 
-from vocab import SPECIALTIES, SYMPTOMS, TIME_SCOPE, TIME_DAY  # noqa: E402
+from vocab import SPECIALTIES, SYMPTOMS, TIME_SCOPE, TIME_DAY, TIME_TIME  # noqa: E402
 
 INTENTS = ["<BOOK>", "<RESCHEDULE>", "<CANCEL>", "<UNSUPPORTED>"]
 SPECIALTY_TOKENS = [e["token"] for e in SPECIALTIES.values()] + ["<UNKNOWN_SPECIALTY>"]
 SYMPTOM_TOKENS = [e["token"] for e in SYMPTOMS.values()]
-ALL_TIME_FACTORS = TIME_SCOPE | TIME_DAY | {
-    "T_MORNING", "T_AFTERNOON", "T_EVENING", "T_EARLY", "T_MIDDAY",
-    "T_BEFORE_NOON", "T_AFTER_NOON", "T_AFTER_18", "T_AFTER_WORK",
-    "T_AFTER_SHIFT", "T_SOON",
-    "T_H08_00", "T_H08_30", "T_H09_00", "T_H09_30", "T_H10_00", "T_H11_00",
-    "T_H13_00", "T_H14_00", "T_H15_00", "T_H16_00", "T_H17_00", "T_H17_30",
-    "T_H18_00", "T_H18_30", "T_H19_00", "T_H20_00", "T_H21_00", "T_H22_00",
-}
+# факторы времени берём из словаря генератора (сетка слотов T_H08_00..
+# T_H20_45 живёт там); T_AMBIG — альтернатива «в 15:00 или в 16:00»,
+# категория time: после него автомат разрешает только </TIME>
+ALL_TIME_FACTORS = TIME_SCOPE | TIME_DAY | TIME_TIME | {"T_AMBIG"}
 
 RANK = {"scope": 0, "day": 1, "time": 2}
 

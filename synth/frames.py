@@ -17,7 +17,8 @@ from dataclasses import dataclass, field
 
 from vocab import (SPECIALTIES, SYMPTOMS, PLAUSIBLE, OOD_PAIRS,
                    INTENT_TOKENS, UNSUPPORTED_POOLS, TEMPORALS,
-                   TEMPORAL_FACTORS)
+                   TEMPORAL_FACTORS, temporal_factors_of,
+                   AMBIG_DAY_SURFACES, SLOT_SURFACES)
 
 SPEC_TOKEN_UNKNOWN = "<UNKNOWN_SPECIALTY>"
 TIME_OPEN, TIME_CLOSE, TIME_UNKNOWN = "<TIME>", "</TIME>", "<T_UNKNOWN>"
@@ -28,6 +29,22 @@ CLARIF_TOKEN, END_TOKEN = "<NEEDS_CLARIFICATION>", "<END_FRAME>"
 
 # 60% фреймов с временной фразой — реалистичная доля для заявок.
 TEMPORAL_PROBA = 0.6
+
+# Доля «или»-альтернатив среди временных фраз («завтра в 15:00 или
+# в 15:30» -> факторы дня + T_AMBIG: конкретный слот выбирает UI).
+AMBIG_PROBA = 0.08
+
+
+def _sample_temporal(rng, proba: float = TEMPORAL_PROBA) -> str | None:
+    if rng.random() >= proba:
+        return None
+    if rng.random() < AMBIG_PROBA:
+        i = rng.randrange(len(SLOT_SURFACES) - 2)
+        j = i + 1 + rng.randrange(2)
+        day = rng.choice(AMBIG_DAY_SURFACES + [None])
+        s = f"{SLOT_SURFACES[i]} или {SLOT_SURFACES[j]}"
+        return f"{day} {s}" if day else s
+    return rng.choice(TEMPORALS)
 
 
 @dataclass
@@ -43,10 +60,11 @@ class Frame:
 
     @property
     def temporal_factors(self) -> tuple:
-        """Фактор-токены слота времени; берутся из таблицы vocab."""
+        """Фактор-токены слота времени: точная таблица или «или»-парсер
+        (день + T_AMBIG)."""
         if not self.temporal:
             return ()
-        return tuple(TEMPORAL_FACTORS.get(self.temporal.replace("ё", "е"), ()))
+        return temporal_factors_of(self.temporal)
 
     @property
     def conflict(self) -> bool:
@@ -110,7 +128,7 @@ def _sample_book(rng, ood: bool) -> Frame:
         symptoms = (rng.choice([sym for s, sym in OOD_PAIRS if s == spec]),)
     else:
         symptoms = _sample_symptoms(rng, spec, p_none=0.40, p_two=0.15)
-    temporal = rng.choice(TEMPORALS) if rng.random() < TEMPORAL_PROBA else None
+    temporal = _sample_temporal(rng)
     return Frame("book", spec, symptoms, False, temporal, ood)
 
 
@@ -118,12 +136,12 @@ def _sample_clarification(rng) -> Frame:
     if rng.random() < 0.55:
         # "запишите к врачу, не знаю к кому" -> UNKNOWN + уточнение
         symptoms = (rng.choice(list(SYMPTOMS)),) if rng.random() < 0.6 else ()
-        temporal = rng.choice(TEMPORALS) if rng.random() < TEMPORAL_PROBA else None
+        temporal = _sample_temporal(rng)
         return Frame("book", "unknown", symptoms, True, temporal)
     # конфликт двух специальностей: "к терапевту или к дерматологу?"
     a, b = rng.sample(list(SPECIALTIES), 2)
     symptoms = ()
-    temporal = rng.choice(TEMPORALS) if rng.random() < TEMPORAL_PROBA else None
+    temporal = _sample_temporal(rng)
     return Frame("book", "unknown", symptoms, True, temporal,
                  extra_mentions=(a, b))
 
@@ -133,11 +151,16 @@ def _sample_reschedule(rng) -> Frame:
                        weights=[1.0] * len(SPECIALTIES) + [0.35])[0]
     symptoms = _sample_symptoms(rng, spec, p_none=0.65, p_two=0.0) \
         if spec in SPECIALTIES else ()
-    temporal = rng.choice(TEMPORALS) if rng.random() < 0.75 else None
+    temporal = _sample_temporal(rng, proba=0.75)
     return Frame("reschedule", spec, symptoms, False, temporal)
 
 
 def _sample_cancel(rng) -> Frame:
+    if rng.random() < 0.3:
+        # «отмени все мои записи» — отмена вообще, без специальности
+        # (раньше дыра: модель не знала формулировку и говорила UNSUPPORTED)
+        return Frame("cancel", "unknown", (), False, None,
+                     aux={"cancel_all": True})
     spec = rng.choices(list(SPECIALTIES) + ["unknown"],
                        weights=[1.0] * len(SPECIALTIES) + [0.6])[0]
     symptoms = _sample_symptoms(rng, spec, p_none=0.75, p_two=0.0) \

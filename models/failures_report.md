@@ -1,93 +1,85 @@
 # Кейсы, которые модель не обработала
 
-Всего промахов: 515
+Всего промахов: 608
 
 ## По наборам
 
-- hasd: 215
-- test_ood: 181
-- test_iid: 51
-- val: 41
-- hasd_unsup: 10
-- manual_gold: 9
-- clinc: 8
+- hasd: 227
+- test_ood: 168
+- val: 107
+- test_iid: 84
+- clinc: 9
+- hasd_unsup: 7
+- manual_gold: 6
 
 ## По полям
 
-- specialty: 417
-- intent: 243
-- time: 241
-- symptoms: 166
+- specialty: 406
+- time: 263
+- intent: 260
+- symptoms: 221
 
-## Примеры: test_ood (181)
+## Примеры: test_ood (168)
 
 - **specialty**
-  - текст: `надо бы к кожнику попасть, в четыре часа дня. Аллергия на что-то.`
-  - надо: `<BOOK> <DERMATOLOGIST> <TIME> T_H16_00 </TIME> <SYMPTOM_ALLERGY> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_H16_00 </TIME> <SYMPTOM_ALLERGY> <NEEDS_CLARIFICATION> <END_FRAME>`
-- **specialty**
-  - текст: `аллергия на чтото кожник нужен срочно в четыре часа дня`
-  - надо: `<BOOK> <DERMATOLOGIST> <TIME> T_H16_00 </TIME> <SYMPTOM_ALLERGY> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_H16_00 </TIME> <SYMPTOM_ALLERGY> <NEEDS_CLARIFICATION> <END_FRAME>`
-- **specialty**
-  - текст: `Аллергия на что-то. Кожник нужен срочно, в четыре часа дня.`
-  - надо: `<BOOK> <DERMATOLOGIST> <TIME> T_H16_00 </TIME> <SYMPTOM_ALLERGY> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_H16_00 </TIME> <SYMPTOM_ALLERGY> <NEEDS_CLARIFICATION> <END_FRAME>`
-- **specialty**
-  - текст: `записалась бы к кожнику, если есть места, в четыре часа дня. Аллергия на что-то.`
-  - надо: `<BOOK> <DERMATOLOGIST> <TIME> T_H16_00 </TIME> <SYMPTOM_ALLERGY> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_H16_00 </TIME> <SYMPTOM_ALLERGY> <NEEDS_CLARIFICATION> <END_FRAME>`
-- **specialty**
-  - текст: `надо бы к кожнику попасть в четыре часа дня аллергия на чтото`
-  - надо: `<BOOK> <DERMATOLOGIST> <TIME> T_H16_00 </TIME> <SYMPTOM_ALLERGY> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_H16_00 </TIME> <SYMPTOM_ALLERGY> <NEEDS_CLARIFICATION> <END_FRAME>`
-- **specialty**
-  - текст: `записалась бы к невропатологу, если есть места, послезавтра утром.`
-  - надо: `<BOOK> <NEUROLOGIST> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <END_FRAME>`
-- **specialty**
-  - текст: `Невропатолог нужен срочно, послезавтра утром.`
-  - надо: `<BOOK> <NEUROLOGIST> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <END_FRAME>`
-- **specialty**
-  - текст: `записалась бы к невропатологу если есть места послезавтра утром`
-  - надо: `<BOOK> <NEUROLOGIST> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_DAY_AFTER_TOMORROW T_MORNING </TIME> <END_FRAME>`
-- **specialty**
-  - текст: `ноет живот. семейный врач нужен срочно, в ближайшие дни.`
-  - надо: `<BOOK> <GP> <TIME> T_SOON </TIME> <SYMPTOM_STOMACH_PAIN> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_SOON </TIME> <SYMPTOM_STOMACH_PAIN> <NEEDS_CLARIFICATION> <END_FRAME>`
-- **specialty**
-  - текст: `ноет живот. семейный врач нужен срочно, в ближайшие дни. палец не сгибается.`
-  - надо: `<BOOK> <GP> <TIME> T_SOON </TIME> <SYMPTOM_STOMACH_PAIN> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_SOON </TIME> <SYMPTOM_STOMACH_PAIN> <NEEDS_CLARIFICATION> <END_FRAME>`
+  - текст: `надо бы к дантисту попасть зуб стреляет`
+  - надо: `<BOOK> <DENTIST> <T_UNKNOWN> <SYMPTOM_TOOTHACHE> <END_FRAME>`
+  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <SYMPTOM_TOOTHACHE> <NEEDS_CLARIFICATION> <END_FRAME>`
 - **specialty+symptoms**
-  - текст: `часто накрывает тревога психоаналитик нужен срочно`
-  - надо: `<BOOK> <PSYCHOLOGIST> <T_UNKNOWN> <SYMPTOM_ANXIETY> <END_FRAME>`
+  - текст: `Зуб стреляет. Дантист нужен срочно.`
+  - надо: `<BOOK> <DENTIST> <T_UNKNOWN> <SYMPTOM_TOOTHACHE> <END_FRAME>`
   - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
+- **specialty**
+  - текст: `надо бы к дантисту попасть. Зуб стреляет.`
+  - надо: `<BOOK> <DENTIST> <T_UNKNOWN> <SYMPTOM_TOOTHACHE> <END_FRAME>`
+  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <SYMPTOM_TOOTHACHE> <NEEDS_CLARIFICATION> <END_FRAME>`
+- **specialty**
+  - текст: `женский врач нужен срочно в три часа дня`
+  - надо: `<BOOK> <GYNECOLOGIST> <TIME> T_H15_00 </TIME> <END_FRAME>`
+  - вышло: `<BOOK> <NEUROLOGIST> <TIME> T_H15_00 </TIME> <END_FRAME>`
+- **specialty**
+  - текст: `надо бы к женскому врачу попасть, в три часа дня.`
+  - надо: `<BOOK> <GYNECOLOGIST> <TIME> T_H15_00 </TIME> <END_FRAME>`
+  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_H15_00 </TIME> <END_FRAME>`
+- **specialty**
+  - текст: `Женский врач нужен срочно, в три часа дня.`
+  - надо: `<BOOK> <GYNECOLOGIST> <TIME> T_H15_00 </TIME> <END_FRAME>`
+  - вышло: `<BOOK> <NEUROLOGIST> <TIME> T_H15_00 </TIME> <END_FRAME>`
+- **specialty**
+  - текст: `надо бы к невропатологу попасть, в четверг.`
+  - надо: `<BOOK> <NEUROLOGIST> <TIME> T_THU </TIME> <END_FRAME>`
+  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_THU </TIME> <END_FRAME>`
+- **specialty**
+  - текст: `Невропатолог нужен срочно, в четверг.`
+  - надо: `<BOOK> <NEUROLOGIST> <TIME> T_THU </TIME> <END_FRAME>`
+  - вышло: `<BOOK> <DENTIST> <TIME> T_THU </TIME> <END_FRAME>`
+- **specialty**
+  - текст: `надо бы к невропатологу попасть в четверг`
+  - надо: `<BOOK> <NEUROLOGIST> <TIME> T_THU </TIME> <END_FRAME>`
+  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_THU </TIME> <END_FRAME>`
+- **specialty**
+  - текст: `надо бы к невропатологу попасть в четверг вены ноют`
+  - надо: `<BOOK> <NEUROLOGIST> <TIME> T_THU </TIME> <END_FRAME>`
+  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_THU </TIME> <END_FRAME>`
+- **intent+specialty+time+symptoms**
+  - текст: `Шатает при ходьбе. Невропатолог нужен срочно, в среду.`
+  - надо: `<BOOK> <NEUROLOGIST> <TIME> T_WED </TIME> <SYMPTOM_DIZZINESS> <END_FRAME>`
+  - вышло: `<UNSUPPORTED> <END_FRAME>`
 - **specialty+symptoms**
-  - текст: `часто накрывает тревога. психоаналитик нужен срочно.`
-  - надо: `<BOOK> <PSYCHOLOGIST> <T_UNKNOWN> <SYMPTOM_ANXIETY> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
+  - текст: `шатает при ходьбе невропатолог нужен срочно в среду`
+  - надо: `<BOOK> <NEUROLOGIST> <TIME> T_WED </TIME> <SYMPTOM_DIZZINESS> <END_FRAME>`
+  - вышло: `<BOOK> <DENTIST> <TIME> T_WED </TIME> <END_FRAME>`
 
-## Примеры: manual_gold (9)
+## Примеры: manual_gold (6)
 
-- **specialty+time**
+- **time+symptoms**
   - текст: `зуб разрывает, чё есть вечером после смены?`
   - надо: `<BOOK> <DENTIST> <TIME> T_EVENING T_AFTER_SHIFT </TIME> <SYMPTOM_TOOTHACHE> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <TIME> T_AFTER_SHIFT </TIME> <SYMPTOM_TOOTHACHE> <NEEDS_CLARIFICATION> <END_FRAME>`
+  - вышло: `<BOOK> <DENTIST> <TIME> T_AFTER_SHIFT </TIME> <END_FRAME>`
 - **intent+specialty+time**
   - текст: `надо проверить зрение, сыну восемь лет`
   - надо: `<BOOK> <OPHTHALMOLOGIST> <T_UNKNOWN> <END_FRAME>`
   - вышло: `<UNSUPPORTED> <END_FRAME>`
-- **intent+specialty+time**
-  - текст: `по записи к неврологу приходить или в живую очередь?`
-  - надо: `<UNSUPPORTED> <END_FRAME>`
-  - вышло: `<RESCHEDULE> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
-- **specialty**
-  - текст: `не к терапевту, а к лору, если можно`
-  - надо: `<BOOK> <ENT> <T_UNKNOWN> <END_FRAME>`
-  - вышло: `<BOOK> <GP> <T_UNKNOWN> <END_FRAME>`
 - **intent+specialty+time**
   - текст: `больно наступать на пятку, кто этим занимается?`
   - надо: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <NEEDS_CLARIFICATION> <END_FRAME>`
@@ -97,32 +89,32 @@
   - надо: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <SYMPTOM_FEVER> <NEEDS_CLARIFICATION> <END_FRAME>`
   - вышло: `<UNSUPPORTED> <END_FRAME>`
 - **intent+specialty+time**
-  - текст: `жена просит записать её к гинекологу на следующей неделе`
-  - надо: `<BOOK> <GYNECOLOGIST> <TIME> T_NEXT_WEEK </TIME> <END_FRAME>`
-  - вышло: `<UNSUPPORTED> <END_FRAME>`
-- **intent+specialty+time**
   - текст: `приём у окулиста в среду больше не нужен`
   - надо: `<CANCEL> <OPHTHALMOLOGIST> <T_UNKNOWN> <END_FRAME>`
-  - вышло: `<UNSUPPORTED> <END_FRAME>`
-- **specialty+symptoms**
+  - вышло: `<BOOK> <NEUROLOGIST> <TIME> T_WED </TIME> <END_FRAME>`
+- **specialty**
   - текст: `панические атаки участились, нужен специалист`
   - надо: `<BOOK> <PSYCHOLOGIST> <T_UNKNOWN> <SYMPTOM_ANXIETY> <END_FRAME>`
-  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
+  - вышло: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <SYMPTOM_ANXIETY> <NEEDS_CLARIFICATION> <END_FRAME>`
 
-## Примеры: hasd (215)
+## Примеры: hasd (227)
 
 - **intent+specialty+time**
   - текст: `Доступность для лаборатории.`
   - надо: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
   - вышло: `<UNSUPPORTED> <END_FRAME>`
 - **intent+specialty+time**
+  - текст: `Проверьте календарь бронирования.`
+  - надо: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
+  - вышло: `<UNSUPPORTED> <END_FRAME>`
+- **intent+specialty+time**
   - текст: `Измени запись.`
   - надо: `<RESCHEDULE> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
   - вышло: `<UNSUPPORTED> <END_FRAME>`
-- **intent+specialty+time**
+- **specialty**
   - текст: `Мне нужно отменить встречу по поводу его диссертации.`
   - надо: `<CANCEL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
-  - вышло: `<UNSUPPORTED> <END_FRAME>`
+  - вышло: `<CANCEL> <DERMATOLOGIST> <T_UNKNOWN> <END_FRAME>`
 - **intent+specialty+time**
   - текст: `Нам нужно что-то перепланировать.`
   - надо: `<RESCHEDULE> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
@@ -132,6 +124,10 @@
   - надо: `<RESCHEDULE> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
   - вышло: `<UNSUPPORTED> <END_FRAME>`
 - **intent+specialty+time**
+  - текст: `Список открыт.`
+  - надо: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
+  - вышло: `<UNSUPPORTED> <END_FRAME>`
+- **intent+specialty+time**
   - текст: `Я не буду там, просто отмени встречу.`
   - надо: `<CANCEL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
   - вышло: `<UNSUPPORTED> <END_FRAME>`
@@ -139,6 +135,10 @@
   - текст: `Я посещаю мой уроки.`
   - надо: `<CANCEL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
   - вышло: `<UNSUPPORTED> <END_FRAME>`
+- **specialty**
+  - текст: `Запиши меня.`
+  - надо: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
+  - вышло: `<BOOK> <DENTIST> <T_UNKNOWN> <END_FRAME>`
 - **intent+specialty+time**
   - текст: `Мне нужно удалить запланированный.`
   - надо: `<CANCEL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
@@ -146,16 +146,4 @@
 - **intent+specialty+time**
   - текст: `Я не могу записаться на встречу, пожалуйста, отмените ее.`
   - надо: `<CANCEL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
-  - вышло: `<UNSUPPORTED> <END_FRAME>`
-- **intent+specialty+time**
-  - текст: `Мне нужно что-то переместить на запястье.`
-  - надо: `<RESCHEDULE> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
-  - вышло: `<UNSUPPORTED> <END_FRAME>`
-- **intent+specialty+time**
-  - текст: `Нужно записаться на работу`
-  - надо: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
-  - вышло: `<UNSUPPORTED> <END_FRAME>`
-- **intent+specialty+time**
-  - текст: `Написать мой устный экзамен.`
-  - надо: `<BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>`
   - вышло: `<UNSUPPORTED> <END_FRAME>`

@@ -167,13 +167,26 @@ object FrameVocab {
         "T_DAY_AFTER_TOMORROW", "T_FRI", "T_IN_2_DAYS", "T_IN_2_WEEKS",
         "T_IN_3_DAYS", "T_IN_MONTH", "T_IN_WEEK", "T_MON", "T_SAT", "T_SUN",
         "T_THU", "T_TODAY", "T_TOMORROW", "T_TUE", "T_WED")
-    val TIME_OF_DAY = setOf(
+    // относительное время («утром», «после работы»)
+    val TIME_REL = setOf(
         "T_AFTERNOON", "T_AFTER_18", "T_AFTER_NOON", "T_AFTER_SHIFT",
         "T_AFTER_WORK", "T_BEFORE_NOON", "T_EARLY", "T_EVENING",
-        "T_H08_00", "T_H08_30", "T_H09_00", "T_H09_30", "T_H10_00",
-        "T_H11_00", "T_H13_00", "T_H14_00", "T_H15_00", "T_H16_00",
-        "T_H17_00", "T_H17_30", "T_H18_00", "T_H18_30", "T_H19_00",
-        "T_H20_00", "T_H21_00", "T_H22_00", "T_MIDDAY", "T_MORNING", "T_SOON")
+        "T_MORNING", "T_SOON")
+    // сетка слотов приёма: 8:00-20:45 с шагом 15 минут (52 слота)
+    val TIME_SLOTS = setOf(
+        "T_H08_00", "T_H08_15", "T_H08_30", "T_H08_45",
+        "T_H09_00", "T_H09_15", "T_H09_30", "T_H09_45",
+        "T_H10_00", "T_H10_15", "T_H10_30", "T_H10_45",
+        "T_H11_00", "T_H11_15", "T_H11_30", "T_H11_45",
+        "T_H12_00", "T_H12_15", "T_H12_30", "T_H12_45",
+        "T_H13_00", "T_H13_15", "T_H13_30", "T_H13_45",
+        "T_H14_00", "T_H14_15", "T_H14_30", "T_H14_45",
+        "T_H15_00", "T_H15_15", "T_H15_30", "T_H15_45",
+        "T_H16_00", "T_H16_15", "T_H16_30", "T_H16_45",
+        "T_H17_00", "T_H17_15", "T_H17_30", "T_H17_45",
+        "T_H18_00", "T_H18_15", "T_H18_30", "T_H18_45",
+        "T_H19_00", "T_H19_15", "T_H19_30", "T_H19_45",
+        "T_H20_00", "T_H20_15", "T_H20_30", "T_H20_45")
 }
 
 class FrameAutomaton(private val idOf: (String) -> Int?) {
@@ -200,7 +213,9 @@ class FrameAutomaton(private val idOf: (String) -> Int?) {
         S.TIME -> ids(setOf("<T_UNKNOWN>", "<TIME>"))
         S.FACTORS -> {
             val ok = (FrameVocab.TIME_SCOPE + FrameVocab.TIME_DAY +
-                      FrameVocab.TIME_OF_DAY).filter { rank(it) > lastRank }
+                      FrameVocab.TIME_REL + FrameVocab.TIME_SLOTS +
+                      setOf("T_AMBIG"))      // «в 15:00 или в 16:00»
+                .filter { rank(it) > lastRank }
             (if (emitted > 0) ids(ok) + idOf("</TIME>")!! else ids(ok))
         }
         S.SYMPTOMS -> ids(FrameVocab.SYMPTOMS.filter { it !in symptoms }) +
@@ -213,8 +228,8 @@ class FrameAutomaton(private val idOf: (String) -> Int?) {
         (FrameVocab.INTENTS + FrameVocab.SPECIALTY + FrameVocab.SYMPTOMS +
          listOf("<T_UNKNOWN>", "<TIME>", "</TIME>", "<NEEDS_CLARIFICATION>",
                 "<END_FRAME>", "<EOS>") +
-         FrameVocab.TIME_SCOPE + FrameVocab.TIME_DAY +
-         FrameVocab.TIME_OF_DAY).forEach { idOf(it)?.let { id -> put(id, it) } }
+         FrameVocab.TIME_REL + FrameVocab.TIME_SLOTS + listOf("T_AMBIG"))
+            .forEach { idOf(it)?.let { id -> put(id, it) } }
     }
 
     fun step(id: Int) {

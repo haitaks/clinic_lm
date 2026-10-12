@@ -24,7 +24,7 @@ SPECIAL_TOKENS = [
     "<PAD>", "<UNK>", "<BOS>", "<EOS>", "<USER>", "<ASSISTANT>",
     "<TIME>", "</TIME>", "<NEEDS_CLARIFICATION>", "<END_FRAME>",
     "<BOOK>", "<RESCHEDULE>", "<CANCEL>", "<UNSUPPORTED>",
-    "<UNKNOWN_SPECIALTY>", "<T_UNKNOWN>", "<T_AMBIG>",
+    "<UNKNOWN_SPECIALTY>", "<T_UNKNOWN>", "T_AMBIG",
 ]
 for entry in SPECIALTIES.values():
     SPECIAL_TOKENS.append(entry["token"])

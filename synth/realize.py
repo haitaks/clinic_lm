@@ -211,6 +211,21 @@ def sk_cancel_unknown(p, rng):
     return f"{lead}не смогу прийти, отмените мою запись." + _symp_tail(p)
 
 
+@skeleton("cancel_all", ["cancel"], structural=True)
+def sk_cancel_all(p, rng):
+    """«отмени все мои записи» — отмена без указания специальности."""
+    verb = rng.choice(["отмени", "отмените", "сотри", "сотрите",
+                       "сними", "снимите"])
+    obj = rng.choice(["все мои записи", "все записи", "все мои приёмы",
+                      "все приёмы", "все мои талоны"])
+    s = f"{verb} {obj}"
+    if rng.random() < 0.3:
+        s = f"{rng.choice(GREETINGS)}! {s}"
+    if rng.random() < 0.2:
+        s += f", {rng.choice(POLITENESS)}"
+    return _cap(s) + "." + _symp_tail(p)
+
+
 # --- скелеты, намайненные из MASSIVE ru-RU calendar-фраз ---
 # (data/massive_calendar_reference.jsonl; запросы расписания не взяты:
 # в контракте нет intent=query, разметка была бы ошибочной)
@@ -307,7 +322,8 @@ def _choose_skeleton(frame: Frame, rng) -> str:
     if frame.ood:
         return rng.choice(["ood_a", "ood_b", "ood_c"])
     if frame.intent == "cancel" and frame.specialty not in SPECIALTIES:
-        return "cancel_unknown"
+        return "cancel_all" if frame.aux.get("cancel_all") \
+            else "cancel_unknown"
     if frame.intent == "reschedule" and frame.specialty not in SPECIALTIES:
         return "resched_unknown"
 
@@ -335,12 +351,16 @@ def _pick_symptom_expr(sym: str, ood: bool, rng):
 
 
 def stt_style(text: str, rng):
-    """Вариации, характерные для вывода STT: регистр и пунктуация."""
+    """Вариации, характерные для вывода STT: регистр и пунктуация.
+    Двоеточие в числовых слотах («в 15:15») не вырезается: вербатимная
+    валидация слота времени и парсер опираются на него (GigaAM с
+    включённой пунктуацией выдаёт «15:15»; бесконтекстные варианты
+    «15 15»/«9.30» понимает парсер _SLOT_RE на инференсе)."""
     r = rng.random()
     if r < 0.35:
         return text, "as_is"
     if r < 0.75:
-        t = re.sub(r"[.,!?;:—-]", "", text.lower())
+        t = re.sub(r"[.,!?;—-]", "", text.lower())
         return re.sub(r"\s+", " ", t).strip(), "lower_nopunct"
     return text.lower(), "lower"
 
