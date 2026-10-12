@@ -1,0 +1,752 @@
+[
+ {
+  "text": "терапевт",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "к терапевту",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "у терапевта",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "участковый",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "к участковому",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "у участкового",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "врач общей практики",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "к врачу общей практики",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "у врача общей практики",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "семейный доктор",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "к семейному доктору",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "у семейного доктора",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "семейный врач",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "к семейному врачу",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "у семейного врача",
+  "tag": "SPEC",
+  "key": "gp"
+ },
+ {
+  "text": "стоматолог",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "к стоматологу",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "у стоматолога",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "зубной",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "к зубному",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "у зубного",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "зубной врач",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "к зубному врачу",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "у зубного врача",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "врач по зубам",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "к врачу по зубам",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "у врача по зубам",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "дантист",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "к дантисту",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "у дантиста",
+  "tag": "SPEC",
+  "key": "dentist"
+ },
+ {
+  "text": "дерматолог",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "к дерматологу",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "у дерматолога",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "врач по коже",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "к врачу по коже",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "у врача по коже",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "специалист по коже",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "к специалисту по коже",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "у специалиста по коже",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "кожник",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "к кожнику",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "у кожника",
+  "tag": "SPEC",
+  "key": "dermatologist"
+ },
+ {
+  "text": "гинеколог",
+  "tag": "SPEC",
+  "key": "gynecologist"
+ },
+ {
+  "text": "к гинекологу",
+  "tag": "SPEC",
+  "key": "gynecologist"
+ },
+ {
+  "text": "у гинеколога",
+  "tag": "SPEC",
+  "key": "gynecologist"
+ },
+ {
+  "text": "женский врач",
+  "tag": "SPEC",
+  "key": "gynecologist"
+ },
+ {
+  "text": "к женскому врачу",
+  "tag": "SPEC",
+  "key": "gynecologist"
+ },
+ {
+  "text": "у женского врача",
+  "tag": "SPEC",
+  "key": "gynecologist"
+ },
+ {
+  "text": "офтальмолог",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "к офтальмологу",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "у офтальмолога",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "глазной врач",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "к глазному врачу",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "у глазного врача",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "врач по глазам",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "к врачу по глазам",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "у врача по глазам",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "окулист",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "к окулисту",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "у окулиста",
+  "tag": "SPEC",
+  "key": "ophthalmologist"
+ },
+ {
+  "text": "невролог",
+  "tag": "SPEC",
+  "key": "neurologist"
+ },
+ {
+  "text": "к неврологу",
+  "tag": "SPEC",
+  "key": "neurologist"
+ },
+ {
+  "text": "у невролога",
+  "tag": "SPEC",
+  "key": "neurologist"
+ },
+ {
+  "text": "врач по нервам",
+  "tag": "SPEC",
+  "key": "neurologist"
+ },
+ {
+  "text": "к врачу по нервам",
+  "tag": "SPEC",
+  "key": "neurologist"
+ },
+ {
+  "text": "у врача по нервам",
+  "tag": "SPEC",
+  "key": "neurologist"
+ },
+ {
+  "text": "невропатолог",
+  "tag": "SPEC",
+  "key": "neurologist"
+ },
+ {
+  "text": "к невропатологу",
+  "tag": "SPEC",
+  "key": "neurologist"
+ },
+ {
+  "text": "у невропатолога",
+  "tag": "SPEC",
+  "key": "neurologist"
+ },
+ {
+  "text": "психолог",
+  "tag": "SPEC",
+  "key": "psychologist"
+ },
+ {
+  "text": "к психологу",
+  "tag": "SPEC",
+  "key": "psychologist"
+ },
+ {
+  "text": "у психолога",
+  "tag": "SPEC",
+  "key": "psychologist"
+ },
+ {
+  "text": "психотерапевт",
+  "tag": "SPEC",
+  "key": "psychologist"
+ },
+ {
+  "text": "к психотерапевту",
+  "tag": "SPEC",
+  "key": "psychologist"
+ },
+ {
+  "text": "у психотерапевта",
+  "tag": "SPEC",
+  "key": "psychologist"
+ },
+ {
+  "text": "психоаналитик",
+  "tag": "SPEC",
+  "key": "psychologist"
+ },
+ {
+  "text": "к психоаналитику",
+  "tag": "SPEC",
+  "key": "psychologist"
+ },
+ {
+  "text": "у психоаналитика",
+  "tag": "SPEC",
+  "key": "psychologist"
+ },
+ {
+  "text": "хирург",
+  "tag": "SPEC",
+  "key": "surgeon"
+ },
+ {
+  "text": "к хирургу",
+  "tag": "SPEC",
+  "key": "surgeon"
+ },
+ {
+  "text": "у хирурга",
+  "tag": "SPEC",
+  "key": "surgeon"
+ },
+ {
+  "text": "врач хирург",
+  "tag": "SPEC",
+  "key": "surgeon"
+ },
+ {
+  "text": "к врачу хирургу",
+  "tag": "SPEC",
+  "key": "surgeon"
+ },
+ {
+  "text": "у врача хирурга",
+  "tag": "SPEC",
+  "key": "surgeon"
+ },
+ {
+  "text": "травматолог",
+  "tag": "SPEC",
+  "key": "surgeon"
+ },
+ {
+  "text": "к травматологу",
+  "tag": "SPEC",
+  "key": "surgeon"
+ },
+ {
+  "text": "у травматолога",
+  "tag": "SPEC",
+  "key": "surgeon"
+ },
+ {
+  "text": "лор",
+  "tag": "SPEC",
+  "key": "ent"
+ },
+ {
+  "text": "к лору",
+  "tag": "SPEC",
+  "key": "ent"
+ },
+ {
+  "text": "у лора",
+  "tag": "SPEC",
+  "key": "ent"
+ },
+ {
+  "text": "врач по ушам",
+  "tag": "SPEC",
+  "key": "ent"
+ },
+ {
+  "text": "к врачу по ушам",
+  "tag": "SPEC",
+  "key": "ent"
+ },
+ {
+  "text": "у врача по ушам",
+  "tag": "SPEC",
+  "key": "ent"
+ },
+ {
+  "text": "отоларинголог",
+  "tag": "SPEC",
+  "key": "ent"
+ },
+ {
+  "text": "к отоларингологу",
+  "tag": "SPEC",
+  "key": "ent"
+ },
+ {
+  "text": "у отоларинголога",
+  "tag": "SPEC",
+  "key": "ent"
+ },
+ {
+  "text": "болит зуб",
+  "tag": "SYM",
+  "key": "toothache"
+ },
+ {
+  "text": "зуб ноет",
+  "tag": "SYM",
+  "key": "toothache"
+ },
+ {
+  "text": "зуб разболелся",
+  "tag": "SYM",
+  "key": "toothache"
+ },
+ {
+  "text": "болят зубы",
+  "tag": "SYM",
+  "key": "toothache"
+ },
+ {
+  "text": "зубная боль",
+  "tag": "SYM",
+  "key": "toothache"
+ },
+ {
+  "text": "зуб болит",
+  "tag": "SYM",
+  "key": "toothache"
+ },
+ {
+  "text": "зуб стреляет",
+  "tag": "SYM",
+  "key": "toothache"
+ },
+ {
+  "text": "болит горло",
+  "tag": "SYM",
+  "key": "sore_throat"
+ },
+ {
+  "text": "горло першит",
+  "tag": "SYM",
+  "key": "sore_throat"
+ },
+ {
+  "text": "горло болит",
+  "tag": "SYM",
+  "key": "sore_throat"
+ },
+ {
+  "text": "горло дерёт",
+  "tag": "SYM",
+  "key": "sore_throat"
+ },
+ {
+  "text": "температура",
+  "tag": "SYM",
+  "key": "fever"
+ },
+ {
+  "text": "высокая температура",
+  "tag": "SYM",
+  "key": "fever"
+ },
+ {
+  "text": "жар",
+  "tag": "SYM",
+  "key": "fever"
+ },
+ {
+  "text": "температура высокая",
+  "tag": "SYM",
+  "key": "fever"
+ },
+ {
+  "text": "температура подскочила",
+  "tag": "SYM",
+  "key": "fever"
+ },
+ {
+  "text": "сыпь",
+  "tag": "SYM",
+  "key": "rash"
+ },
+ {
+  "text": "высыпания",
+  "tag": "SYM",
+  "key": "rash"
+ },
+ {
+  "text": "высыпало",
+  "tag": "SYM",
+  "key": "rash"
+ },
+ {
+  "text": "обсыпало",
+  "tag": "SYM",
+  "key": "rash"
+ },
+ {
+  "text": "болит спина",
+  "tag": "SYM",
+  "key": "back_pain"
+ },
+ {
+  "text": "поясницу прихватило",
+  "tag": "SYM",
+  "key": "back_pain"
+ },
+ {
+  "text": "болит поясница",
+  "tag": "SYM",
+  "key": "back_pain"
+ },
+ {
+  "text": "спина болит",
+  "tag": "SYM",
+  "key": "back_pain"
+ },
+ {
+  "text": "спину скрутило",
+  "tag": "SYM",
+  "key": "back_pain"
+ },
+ {
+  "text": "болит голова",
+  "tag": "SYM",
+  "key": "headache"
+ },
+ {
+  "text": "голова раскалывается",
+  "tag": "SYM",
+  "key": "headache"
+ },
+ {
+  "text": "голова болит",
+  "tag": "SYM",
+  "key": "headache"
+ },
+ {
+  "text": "мигрень",
+  "tag": "SYM",
+  "key": "headache"
+ },
+ {
+  "text": "болит глаз",
+  "tag": "SYM",
+  "key": "eye_pain"
+ },
+ {
+  "text": "глаза режет",
+  "tag": "SYM",
+  "key": "eye_pain"
+ },
+ {
+  "text": "резь в глазах",
+  "tag": "SYM",
+  "key": "eye_pain"
+ },
+ {
+  "text": "глаза болят",
+  "tag": "SYM",
+  "key": "eye_pain"
+ },
+ {
+  "text": "болят глаза",
+  "tag": "SYM",
+  "key": "eye_pain"
+ },
+ {
+  "text": "тревога",
+  "tag": "SYM",
+  "key": "anxiety"
+ },
+ {
+  "text": "тревожно",
+  "tag": "SYM",
+  "key": "anxiety"
+ },
+ {
+  "text": "панические атаки",
+  "tag": "SYM",
+  "key": "anxiety"
+ },
+ {
+  "text": "часто накрывает тревога",
+  "tag": "SYM",
+  "key": "anxiety"
+ },
+ {
+  "text": "кашель",
+  "tag": "SYM",
+  "key": "cough"
+ },
+ {
+  "text": "кашляю",
+  "tag": "SYM",
+  "key": "cough"
+ },
+ {
+  "text": "кашель не проходит",
+  "tag": "SYM",
+  "key": "cough"
+ },
+ {
+  "text": "болит живот",
+  "tag": "SYM",
+  "key": "stomach_pain"
+ },
+ {
+  "text": "живот крутит",
+  "tag": "SYM",
+  "key": "stomach_pain"
+ },
+ {
+  "text": "живот болит",
+  "tag": "SYM",
+  "key": "stomach_pain"
+ },
+ {
+  "text": "ноет живот",
+  "tag": "SYM",
+  "key": "stomach_pain"
+ },
+ {
+  "text": "кружится голова",
+  "tag": "SYM",
+  "key": "dizziness"
+ },
+ {
+  "text": "головокружение",
+  "tag": "SYM",
+  "key": "dizziness"
+ },
+ {
+  "text": "шатает при ходьбе",
+  "tag": "SYM",
+  "key": "dizziness"
+ },
+ {
+  "text": "бессонница",
+  "tag": "SYM",
+  "key": "insomnia"
+ },
+ {
+  "text": "не могу уснуть",
+  "tag": "SYM",
+  "key": "insomnia"
+ },
+ {
+  "text": "совсем не сплю",
+  "tag": "SYM",
+  "key": "insomnia"
+ },
+ {
+  "text": "аллергия",
+  "tag": "SYM",
+  "key": "allergy"
+ },
+ {
+  "text": "аллергическая реакция",
+  "tag": "SYM",
+  "key": "allergy"
+ },
+ {
+  "text": "аллергия на что-то",
+  "tag": "SYM",
+  "key": "allergy"
+ }
+]
