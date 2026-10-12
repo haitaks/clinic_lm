@@ -1,5 +1,11 @@
 # Интеграция модели на Android (Kotlin, TFLite / LiteRT)
 
+> **Основной подход теперь — теггер** (один forward, сборка фрейма на
+> Kotlin): гайд в `tagger/ANDROID_INTEGRATION.md`, артефакты
+> `tagger/models/`. Этот документ — развёртывание GPT-варианта
+> (авторегрессия + constrained decoding), он остаётся резервным контуром;
+> токенайзер `tokenizer.json` общий для обеих архитектур.
+
 Полный гайд: от файлов до работающего `parse(text): String` на телефоне.
 Референсная реализация всей логики — `train/constrained.py` +
 `train/export_tflite.py` (Python); здесь её точный порт на Kotlin.
