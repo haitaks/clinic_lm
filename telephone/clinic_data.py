@@ -23,12 +23,12 @@ CLINIC = {
     "minzdrav": "сто двадцать два",
 }
 
-# Внутренние направления перевода (2.1)
+# Внутренние направления перевода (2.1), extension-номера АТС
 EXTENSIONS = {
-    "М4-С": 2,   # стоматология
-    "М4-П": 3,   # платное отделение
-    "М4-Н": 4,   # кабинет неотложной помощи
-    "М3": 5,     # старший администратор
+    "dentistry": 2,   # стоматология
+    "paid": 3,        # платное отделение
+    "urgent": 4,      # кабинет неотложной помощи
+    "senior": 5,      # старший администратор
 }
 
 # Режим работы (2.2) — реплики для FAQ взяты дословно из раздела 6.
@@ -46,29 +46,44 @@ HOURS = {
                  "в субботу с девяти до пятнадцати",
 }
 
-# Отделения, специалисты и порядок записи (2.3).
-# direct=True — прямая запись; referral=True — только по направлению.
+# Отделения, специалисты и порядок записи (2.3) — «таблица выбора врача».
+# mode: direct — прямая запись; referral — только по направлению (без него
+# записываем к участковому терапевту/педиатру за направлением).
+# age: child — педиатрическое отделение (0–17). Ортопед/ортодонт стоматологии
+# и прочие платные услуги в таблицу не входят — они идут через intent=paid.
 SPECIALTIES = {
-    "gp":             {"nom": "терапевт", "dat": "терапевту", "direct": True,  "referral": False, "pediatric": False},
-    "pediatrician":   {"nom": "педиатр", "dat": "педиатру", "direct": True,  "referral": False, "pediatric": True},
-    "surgeon":        {"nom": "хирург", "dat": "хирургу", "direct": True,  "referral": False, "pediatric": False},
-    "surgeon_child":  {"nom": "детский хирург", "dat": "детскому хирургу", "direct": True, "referral": False, "pediatric": True},
-    "ophthalmologist": {"nom": "офтальмолог", "dat": "офтальмологу", "direct": True, "referral": False, "pediatric": False},
-    "ophthalmologist_child": {"nom": "детский офтальмолог", "dat": "детскому офтальмологу", "direct": True, "referral": False, "pediatric": True},
-    "ent":            {"nom": "оториноларинголог", "dat": "лору", "direct": True, "referral": False, "pediatric": False},
-    "ent_child":      {"nom": "детский ЛОР", "dat": "детскому лору", "direct": True, "referral": False, "pediatric": True},
-    "gynecologist":   {"nom": "акушер-гинеколог", "dat": "гинекологу", "direct": True, "referral": False, "pediatric": False},
-    "dentist":        {"nom": "стоматолог", "dat": "стоматологу", "direct": True, "referral": False, "pediatric": False},
-    "cardiologist":   {"nom": "кардиолог", "dat": "кардиологу", "direct": False, "referral": True, "pediatric": False},
-    "neurologist":    {"nom": "невролог", "dat": "неврологу", "direct": False, "referral": True, "pediatric": False},
-    "endocrinologist": {"nom": "эндокринолог", "dat": "эндокринологу", "direct": False, "referral": True, "pediatric": False},
-    "gastroenterologist": {"nom": "гастроэнтеролог", "dat": "гастроэнтерологу", "direct": False, "referral": True, "pediatric": False},
-    "urologist":      {"nom": "уролог", "dat": "урологу", "direct": False, "referral": True, "pediatric": False},
-    "pulmonologist":  {"nom": "пульмонолог", "dat": "пульмонологу", "direct": False, "referral": True, "pediatric": False},
-    "prophylaxis":    {"nom": "кабинет медицинской профилактики", "dat": "в кабинет медицинской профилактики", "direct": True, "referral": False, "pediatric": False},
-    "fluorography":   {"nom": "флюорография", "dat": "на флюорографию", "direct": True, "referral": False, "pediatric": False},
-    "ultrasound":     {"nom": "УЗИ", "dat": "на УЗИ", "direct": False, "referral": True, "pediatric": False},
+    "gp":             {"nom": "терапевт", "dat": "терапевту", "mode": "direct",   "age": "any",   "pediatric": False},
+    "pediatrician":   {"nom": "педиатр", "dat": "педиатру", "mode": "direct",   "age": "child", "pediatric": True},
+    "surgeon":        {"nom": "хирург", "dat": "хирургу", "mode": "direct",   "age": "any",   "pediatric": False},
+    "surgeon_child":  {"nom": "детский хирург", "dat": "детскому хирургу", "mode": "direct",   "age": "child", "pediatric": True},
+    "ophthalmologist": {"nom": "офтальмолог", "dat": "офтальмологу", "mode": "direct",   "age": "any",   "pediatric": False},
+    "ophthalmologist_child": {"nom": "детский офтальмолог", "dat": "детскому офтальмологу", "mode": "direct",   "age": "child", "pediatric": True},
+    "ent":            {"nom": "оториноларинголог", "dat": "лору", "mode": "direct",   "age": "any",   "pediatric": False},
+    "ent_child":      {"nom": "детский ЛОР", "dat": "детскому лору", "mode": "direct",   "age": "child", "pediatric": True},
+    "gynecologist":   {"nom": "акушер-гинеколог", "dat": "гинекологу", "mode": "direct",   "age": "any",   "pediatric": False},
+    "dentist":        {"nom": "стоматолог", "dat": "стоматологу", "mode": "direct",   "age": "any",   "pediatric": False},
+    "cardiologist":   {"nom": "кардиолог", "dat": "кардиологу", "mode": "referral", "age": "any",   "pediatric": False},
+    "neurologist":    {"nom": "невролог", "dat": "неврологу", "mode": "referral", "age": "any",   "pediatric": False},
+    "endocrinologist": {"nom": "эндокринолог", "dat": "эндокринологу", "mode": "referral", "age": "any",   "pediatric": False},
+    "gastroenterologist": {"nom": "гастроэнтеролог", "dat": "гастроэнтерологу", "mode": "referral", "age": "any",   "pediatric": False},
+    "urologist":      {"nom": "уролог", "dat": "урологу", "mode": "referral", "age": "any",   "pediatric": False},
+    "pulmonologist":  {"nom": "пульмонолог", "dat": "пульмонологу", "mode": "referral", "age": "any",   "pediatric": False},
+    "prophylaxis":    {"nom": "кабинет медицинской профилактики", "dat": "в кабинет медицинской профилактики", "mode": "direct",   "age": "any",   "pediatric": False},
+    "fluorography":   {"nom": "флюорография", "dat": "на флюорографию", "mode": "direct",   "age": "any",   "pediatric": False},
+    "ultrasound":     {"nom": "УЗИ", "dat": "на УЗИ", "mode": "referral", "age": "any",   "pediatric": False},
 }
+
+
+def default_specialty(pediatric: bool) -> str:
+    """Специальность не названа → участковый: терапевт (взрослый) или
+    педиатр (ребёнок). Выбор — по таблице 2.3, не по симптомам."""
+    return "pediatrician" if pediatric else "gp"
+
+
+def child_specialty(specialty: str) -> str:
+    """Взрослая специальность → детский вариант, если он есть в 2.3."""
+    child = specialty + "_child"
+    return child if child in SPECIALTIES else specialty
 
 # Словарь синонимов (Приложение А.1 + триггеры сценариев) — для RuleNlu.
 SPECIALTY_KEYWORDS: dict[str, list[str]] = {
@@ -168,18 +183,19 @@ def _in_hours(now: datetime, weekdays: tuple[int, ...],
 
 
 def target_available(target: str, now: datetime) -> bool:
-    """М2/М3/М4 доступны в часы из раздела 7.2; М0/М5 — всегда."""
+    """Доступность адресатов перевода по часам из раздела 7.2; вне часов —
+    обратный звонок вместо перевода."""
     wd = (0, 1, 2, 3, 4)
     sat = (5,)
-    if target == "М2":
+    if target == "operator":
         return _in_hours(now, wd, time(7, 0), time(20, 0)) or \
             _in_hours(now, sat, time(8, 30), time(15, 0))
-    if target == "М3":
+    if target == "senior":
         return _in_hours(now, wd, time(8, 0), time(17, 0))
-    if target == "М4-С":
+    if target == "dentistry":
         return _in_hours(now, wd, time(8, 0), time(20, 0)) or \
             _in_hours(now, sat, time(9, 0), time(14, 0))
-    if target in ("М4-П", "М4-Н"):
+    if target in ("paid", "urgent"):
         return _in_hours(now, wd, time(8, 0), time(20, 0)) or \
             _in_hours(now, sat, time(9, 0), time(15, 0))
     return True

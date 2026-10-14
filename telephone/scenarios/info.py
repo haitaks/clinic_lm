@@ -1,162 +1,173 @@
 # -*- coding: utf-8 -*-
-"""С-07 Справка о графике работы + FAQ (раздел 6 регламента)."""
+"""Справки: график работы (врача/отделения/поликлиники) и FAQ раздела 6
+регламента. Ответ — готовой фразой из справочника, затем предложение
+записи или маршрутизация по followup-таблице FAQ."""
 from __future__ import annotations
 
 from .. import phrases as ph
 from .. import textutils as tu
-from ..schema import Intent, Priority, ResultCode, RouteRule, ScenarioId, \
-    Target, Transfer
-from .base import DialogContext, Scenario, StepResult
+from ..schema import INFO, Intent, Target, Transfer
+from .common import DialogContext, Scenario, StepResult
 
 # идентификаторы ответов раздела 6 — их возвращает модель (Frame.faq_id)
 _FAQ_BY_ID = {entry["id"]: entry for entry in ph.FAQ}
 
 
-class ScheduleScenario(Scenario):
-    """С-07: график врача/подразделения/поликлиники, затем предложение
-    записи. Идентификация не требуется."""
+class InfoFlow(Scenario):
+    """График (intent=schedule), FAQ-вопрос (frame.faq_id) или документы/
+    прикрепление (intent=docs). Идентификация пациента не требуется."""
 
-    id = ScenarioId.C07
-    intent_label = "I-06 График"
+    label = "info"
 
     def __init__(self, frame=None):
         self.frame = frame
-        self.state = "start"        # start → offer_booking
+        self.state = "answer"      # answer → offer_booking
+        self._specialty = None
 
     def start(self, ctx: DialogContext) -> StepResult:
-        ctx.collect("интент", "график/справка")
+        ctx.collect("тема", "справка")
+        if self.frame is not None and self.frame.faq_id:
+            return self._answer_faq(ctx, self.frame.faq_id)
+        if self.frame is not None and self.frame.intent == Intent.DOCS:
+            return self._docs_answer(ctx)
+        return self._answer_schedule(ctx)
+
+    def _docs_answer(self, ctx) -> StepResult:
+        return StepResult(label=self.label, reply=ph.ATTACH_HOWTO +
+                          " " + ph.ANYTHING_ELSE_SHORT, done=True,
+                          status=INFO)
+
+    def handle_utterance(self, ctx: DialogContext, frame, text: str) -> StepResult:
+        if self.state != "offer_booking":
+            return StepResult(label=self.label, progress=False)
+        if frame.answer is True:
+            from .booking import BookingFlow
+            return StepResult(label=self.label,
+                              handoff=BookingFlow(specialty=self._specialty))
+        if frame.answer is False:
+            return StepResult(label=self.label, reply="Хорошо. Всего доброго!",
+                              done=True, status=INFO)
+        if frame.intent is not None:
+            return StepResult(label=self.label, progress=False)
+        return StepResult(label=self.label, reply="Записать вас?",
+                          progress=False)
+
+    # -- график --
+
+    def _answer_schedule(self, ctx) -> StepResult:
         doctor = self.frame.doctor if self.frame else None
         specialty = self.frame.specialty if self.frame else None
+        self.state = "offer_booking"
         if doctor:
             infos = ctx.mis.doctor_schedule(doctor.split()[0])
             if not infos:
-                return StepResult(reply=ph.DOCTOR_NOT_FOUND, done=True,
-                                  result_code=ResultCode.INFO_GIVEN)
+                return StepResult(label=self.label, reply=ph.DOCTOR_NOT_FOUND,
+                                  done=True, status=INFO)
             info = infos[0]
-            if info.on_leave_until:
-                self.state = "offer_booking"
-                self._specialty = info.specialty
-                return StepResult(reply=ph.DOCTOR_ON_LEAVE.format(
-                    doctor=info.doctor,
-                    date=tu.date_words(info.on_leave_until,
-                                       with_weekday=False),
-                    substitute=info.substitute))
-            self.state = "offer_booking"
             self._specialty = info.specialty
-            return StepResult(reply=ph.DOCTOR_SCHEDULE.format(
+            if info.on_leave_until:
+                return StepResult(label=self.label, reply=ph.DOCTOR_ON_LEAVE.format(
+                    doctor=info.doctor,
+                    date=tu.date_words(info.on_leave_until, with_weekday=False),
+                    substitute=info.substitute))
+            return StepResult(label=self.label, reply=ph.DOCTOR_SCHEDULE.format(
                 doctor=info.doctor, days=info.days, hours=info.hours,
                 cabinet=tu.number_words(info.cabinet)))
         if specialty:
             infos = [i for i in ctx.mis.doctor_schedule("")
                      if i.specialty == specialty]
-            self.state = "offer_booking"
             self._specialty = specialty
             if len(infos) == 2:
-                return StepResult(reply=ph.TWO_DOCTORS_SCHEDULE.format(
-                    first=infos[0].doctor.split()[0], hours1=infos[0].hours,
-                    second=infos[1].doctor.split()[0], hours2=infos[1].hours,
-                    cabinet=tu.number_words(infos[0].cabinet)))
+                return StepResult(
+                    label=self.label,
+                    reply=ph.TWO_DOCTORS_SCHEDULE.format(
+                        first=infos[0].doctor.split()[0], hours1=infos[0].hours,
+                        second=infos[1].doctor.split()[0], hours2=infos[1].hours,
+                        cabinet=tu.number_words(infos[0].cabinet)))
             if len(infos) == 1:
-                return StepResult(reply=ph.DOCTOR_SCHEDULE.format(
-                    doctor=infos[0].doctor, days=infos[0].days,
-                    hours=infos[0].hours,
-                    cabinet=tu.number_words(infos[0].cabinet)))
-        self.state = "offer_booking"
-        return StepResult(reply=ph.CLINIC_SCHEDULE,
+                return StepResult(
+                    label=self.label,
+                    reply=ph.DOCTOR_SCHEDULE.format(
+                        doctor=infos[0].doctor, days=infos[0].days,
+                        hours=infos[0].hours,
+                        cabinet=tu.number_words(infos[0].cabinet)))
+        return StepResult(label=self.label, reply=ph.CLINIC_SCHEDULE,
                           expecting="да/нет")
 
-    def handle_utterance(self, ctx: DialogContext, frame, text: str) -> StepResult:
-        if self.state == "offer_booking":
-            if frame.answer is True:
-                from .booking import BookingScenario
-                return StepResult(handoff=BookingScenario(
-                    specialty=getattr(self, "_specialty", None)))
-            if frame.answer is False:
-                return StepResult(reply="Хорошо. Всего доброго!", done=True,
-                                  result_code=ResultCode.INFO_GIVEN)
-            if frame.intent is not None:
-                return StepResult(progress=False)
-            return StepResult(reply="Записать вас?", progress=False)
-        return StepResult(progress=False)
+    # -- FAQ --
 
-
-class FaqScenario(Scenario):
-    """FAQ раздела 6: готовые ответы + маршрут «действие» из таблицы."""
-
-    id = ScenarioId.C07
-    intent_label = "I-10 Документы и справки"
-
-    def __init__(self, frame=None):
-        self.frame = frame
-        self.state = "start"        # start → offer
-        self.entry: dict | None = None
-        self._specialty = None
-
-    def start(self, ctx: DialogContext) -> StepResult:
-        ctx.collect("интент", "справка")
-        faq_id = self.frame.faq_id if self.frame else None
-        self.entry = _FAQ_BY_ID.get(faq_id)
-        if self.entry is None:
-            from .transferred import TransferredScenario
-            return StepResult(handoff=TransferredScenario(Intent.DOCS))
-        ctx.collect("вопрос", self.entry["id"])
-        followup = self.entry["followup"]
-        answer = self.entry["answer"]
+    def _answer_faq(self, ctx, faq_id: str) -> StepResult:
+        entry = _FAQ_BY_ID.get(faq_id)
+        if entry is None:
+            # вопрос из справочника не найден — оператор с текстом реплики
+            return StepResult(
+                label=self.label,
+                reply="Наличие уточнит регистратор. " + ph.TRANSFER_OPERATOR,
+                actions=[Transfer(target=Target.OPERATOR, priority=3,
+                                  card=ctx.card(ctx.last_user[:150],
+                                                "вопрос вне справочника"))],
+                done=True, status="transferred")
+        ctx.collect("вопрос", entry["id"])
+        answer = entry["answer"]
+        followup = entry["followup"]
         if followup == "":
-            return StepResult(reply=answer, done=True,
-                              result_code=ResultCode.INFO_GIVEN)
+            return StepResult(label=self.label, reply=answer, done=True,
+                              status=INFO)
         if followup == "offer_booking":
-            self.state = "offer"
-            return StepResult(reply=answer, result_code=ResultCode.INFO_GIVEN,
+            self.state = "offer_booking"
+            return StepResult(label=self.label, reply=answer, status=INFO,
                               expecting="да/нет")
-        # ответ звучит, затем действие/сценарий из таблицы раздела 6
-        step = self._followup(ctx, followup)
-        if step.handoff is not None:
-            return StepResult(reply=answer + " " + step.reply
-                              if step.reply else answer,
-                              handoff=step.handoff)
-        return StepResult(reply=answer + " " + step.reply
-                          if step.reply else answer,
-                          actions=step.actions, done=step.done,
-                          result_code=step.result_code)
+        # ответ звучит, затем действие/сценарий из followup-таблицы
+        return self._followup(ctx, answer, followup)
 
-    def handle_utterance(self, ctx: DialogContext, frame, text: str) -> StepResult:
-        if self.state == "offer":
-            if frame.answer is True:
-                from .booking import BookingScenario
-                return StepResult(handoff=BookingScenario(
-                    specialty=self._specialty))
-            if frame.answer is False:
-                return StepResult(reply=ph.ANYTHING_ELSE_SHORT, done=True,
-                                  result_code=ResultCode.INFO_GIVEN)
-            if frame.intent is not None:
-                return StepResult(progress=False)
-            return StepResult(reply="Записать вас?", progress=False)
-        return StepResult(progress=False)
+    def _followup(self, ctx, answer: str, followup: str) -> StepResult:
+        from .appointments import AppointmentsFlow
+        from .booking import BookingFlow
+        if followup == "cancel":
+            return StepResult(label=self.label, reply=answer,
+                              handoff=AppointmentsFlow(action="cancel"))
+        if followup == "reschedule":
+            return StepResult(label=self.label, reply=answer,
+                              handoff=AppointmentsFlow(action="reschedule"))
+        if followup == "home_visit":
+            return StepResult(
+                label=self.label,
+                reply=answer + " " + ph.TRANSFER_OPERATOR,
+                actions=[Transfer(target=Target.OPERATOR, priority=3,
+                                  card=ctx.card(ctx.last_user[:150],
+                                                "вызов врача на дом"))],
+                done=True, status="transferred")
+        if followup == "waitlist":
+            return StepResult(
+                label=self.label,
+                reply=answer + " Соединяю с регистратором для оформления "
+                               "листа ожидания.",
+                actions=[Transfer(target=Target.OPERATOR, priority=3,
+                                  card=ctx.card(ctx.last_user[:150],
+                                                "лист ожидания"))],
+                done=True, status="transferred")
+        if followup == "paid":
+            return StepResult(
+                label=self.label,
+                reply=answer + " " + ph.TRANSFER_PAID,
+                actions=[Transfer(target=Target.PAID, priority=3,
+                                  card=ctx.card(ctx.last_user[:150],
+                                                "платные услуги"))],
+                done=True, status="transferred")
+        if followup == "attach":
+            return self._attach_answer(answer)
+        if followup == "escalate":
+            return StepResult(
+                label=self.label,
+                reply=answer + " " + ph.TRANSFER_OPERATOR,
+                actions=[Transfer(target=Target.OPERATOR, priority=3,
+                                  card=ctx.card(ctx.last_user[:150],
+                                                "вопрос вне справочника"))],
+                done=True, status="transferred")
+        return StepResult(label=self.label, reply=answer, done=True,
+                          status=INFO)
 
-    def _followup(self, ctx: DialogContext, followup: str) -> StepResult:
-        from .booking import BookingScenario
-        from .records import CancelScenario, RescheduleScenario
-        from .transferred import TransferredScenario
-        routes = {
-            "cancel": lambda: StepResult(handoff=CancelScenario()),
-            "reschedule": lambda: StepResult(handoff=RescheduleScenario()),
-            "home_visit": lambda: StepResult(
-                handoff=TransferredScenario(Intent.HOME_VISIT)),
-            "waitlist": lambda: StepResult(
-                handoff=TransferredScenario(Intent.WAITLIST)),
-            "paid": lambda: StepResult(
-                handoff=TransferredScenario(Intent.PAID)),
-            "attach": lambda: StepResult(
-                handoff=TransferredScenario(Intent.DOCS)),
-            "escalate": lambda: StepResult(
-                reply="Наличие уточнит регистратор. " + ph.R08_TRANSFER,
-                actions=[Transfer(
-                    target=Target.REGISTRAR, rule=RouteRule.R08,
-                    priority=Priority.P3,
-                    card=ctx.build_card(
-                        RouteRule.R08, Priority.P3,
-                        "Вопрос вне справочника ГА", self.intent_label))],
-                done=True, result_code=ResultCode.ESCALATED),
-        }
-        return routes[followup]()
+    def _attach_answer(self, answer: str) -> StepResult:
+        reply = ((answer + " ") if answer else "") + ph.ATTACH_HOWTO
+        return StepResult(label=self.label, reply=reply, done=True,
+                          status=INFO)

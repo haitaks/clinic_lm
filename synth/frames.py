@@ -16,8 +16,8 @@
 from dataclasses import dataclass, field
 
 from vocab import (SPECIALTIES, SYMPTOMS, PLAUSIBLE, OOD_PAIRS,
-                   INTENT_TOKENS, UNSUPPORTED_POOLS, TEMPORALS,
-                   TEMPORAL_FACTORS, temporal_factors_of,
+                   INTENT_TOKENS, ANSWER_TOKENS, UNSUPPORTED_POOLS,
+                   TEMPORALS, TEMPORAL_FACTORS, temporal_factors_of,
                    AMBIG_DAY_SURFACES, SLOT_SURFACES)
 
 SPEC_TOKEN_UNKNOWN = "<UNKNOWN_SPECIALTY>"
@@ -49,7 +49,7 @@ def _sample_temporal(rng, proba: float = TEMPORAL_PROBA) -> str | None:
 
 @dataclass
 class Frame:
-    intent: str                    # book | reschedule | cancel | unsupported
+    intent: str                    # ключ INTENT_TOKENS/ANSWER_TOKENS
     specialty: str | None          # ключ SPECIALTIES | "unknown" | None
     symptoms: tuple                # ключи SYMPTOMS
     needs_clarification: bool
@@ -71,6 +71,11 @@ class Frame:
         """Выбор между двумя специальностями -> UNKNOWN + уточнение."""
         return bool(self.extra_mentions) and self.intent != "unsupported"
 
+    @property
+    def is_answer(self) -> bool:
+        """Тривиальный путь: голое «да»/«нет» без специальности и времени."""
+        return self.intent in ANSWER_TOKENS
+
 
 def spec_token(spec: str | None) -> str:
     if spec in SPECIALTIES:
@@ -79,6 +84,8 @@ def spec_token(spec: str | None) -> str:
 
 
 def target_string(frame: Frame) -> str:
+    if frame.is_answer:
+        return f"{ANSWER_TOKENS[frame.intent]} {END_TOKEN}"
     if frame.intent == "unsupported":
         return f"{INTENT_TOKENS['unsupported']} {END_TOKEN}"
     toks = [INTENT_TOKENS[frame.intent], spec_token(frame.specialty)]
@@ -104,9 +111,14 @@ def frame_key(frame: Frame):
     Для unsupported в ключ входит пул и вариант, иначе все "часы работы"
     схлопнутся в одну группу и целиком уедут в один сплит.
     """
+    if frame.is_answer:
+        return (frame.intent, frame.aux.get("variant"))
     if frame.intent == "unsupported":
         return ("unsupported", frame.aux.get("pool"),
                 frame.aux.get("variant"))
+    if frame.aux.get("variant") is not None:
+        # bare-интенты каталога: вариант вместо отсутствующих слотов
+        return (frame.intent, "variant", frame.aux["variant"])
     return (frame.intent, frame.specialty, frame.symptoms,
             frame.needs_clarification, tuple(sorted(frame.extra_mentions)))
 
@@ -177,13 +189,69 @@ def _sample_unsupported(rng) -> Frame:
                  aux={"pool": pool, "variant": variant})
 
 
-# распределение интентов: BOOK доминирует, отрицательный класс заметный
+# --- телефонный каталог: специальные/справочные интенты ---
+
+def _sample_spec_optional(rng, intent: str, p_spec: float,
+                          p_temporal: float = 0.0) -> Frame:
+    """Интент, где специальность может быть названа, а может нет:
+    «записан ли я к лору» / «на когда я записан»."""
+    spec = rng.choices(list(SPECIALTIES) + ["unknown"],
+                       weights=[1.0] * len(SPECIALTIES) + [0.6])[0] \
+        if rng.random() < p_spec else "unknown"
+    temporal = _sample_temporal(rng, proba=p_temporal)
+    return Frame(intent, spec, (), False, temporal)
+
+
+def _sample_check_booking(rng) -> Frame:
+    return _sample_spec_optional(rng, "check_booking", p_spec=0.5)
+
+
+def _sample_schedule(rng) -> Frame:
+    return _sample_spec_optional(rng, "schedule", p_spec=0.45)
+
+
+def _sample_bare(rng, intent: str) -> Frame:
+    # вариант в ключе фрейма обходит CAP_PER_FRAME для интентов с одним
+    # логическим фреймом («врач на дом»): разнообразие дают поверхности
+    return Frame(intent, "unknown", (), False, None,
+                 aux={"variant": rng.randrange(6)})
+
+
+def _sample_medical(rng) -> Frame:
+    # медвопрос может нести симптом («что принимать, кашель») — но формулировки
+    # без иголок: симптомные медвопросы генерирует скелет symp_medical
+    if rng.random() < 0.45:
+        sym = rng.choice(list(SYMPTOMS))
+        return Frame("medical", "unknown", (sym,), False, None,
+                     aux={"symp_medical": True})
+    return _sample_bare(rng, "medical")
+
+
+def _sample_answer(rng, which: str) -> Frame:
+    """Тривиальный путь: «да»/«нет» как самостоятельная реплика."""
+    variant = rng.randrange(8)
+    return Frame(which, None, (), False, None, aux={"variant": variant})
+
+
+# распределение интентов: BOOK доминирует, отрицательный класс и
+# телефонный каталог заметные; тривиальные да/нет — частые реплики
 _INTENT_PLAN = [
-    ("book", 0.50, _sample_book),
-    ("clar", 0.08, _sample_clarification),
-    ("reschedule", 0.12, _sample_reschedule),
-    ("cancel", 0.10, _sample_cancel),
-    ("unsupported", 0.10, _sample_unsupported),
+    ("book", 0.30, _sample_book),
+    ("clar", 0.05, _sample_clarification),
+    ("reschedule", 0.09, _sample_reschedule),
+    ("cancel", 0.08, _sample_cancel),
+    ("yes", 0.07, lambda rng: _sample_answer(rng, "yes")),
+    ("no", 0.05, lambda rng: _sample_answer(rng, "no")),
+    ("check_booking", 0.05, _sample_check_booking),
+    ("schedule", 0.05, _sample_schedule),
+    ("home_visit", 0.04, lambda rng: _sample_bare(rng, "home_visit")),
+    ("lab_status", 0.04, lambda rng: _sample_bare(rng, "lab_status")),
+    ("paid", 0.04, lambda rng: _sample_bare(rng, "paid")),
+    ("docs", 0.04, lambda rng: _sample_bare(rng, "docs")),
+    ("waitlist", 0.03, lambda rng: _sample_bare(rng, "waitlist")),
+    ("complaint", 0.03, lambda rng: _sample_bare(rng, "complaint")),
+    ("medical", 0.03, _sample_medical),
+    ("unsupported", 0.07, _sample_unsupported),
 ]
 
 

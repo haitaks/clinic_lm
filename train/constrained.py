@@ -14,9 +14,12 @@ import torch
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "synth"))
 
-from vocab import SPECIALTIES, SYMPTOMS, TIME_SCOPE, TIME_DAY, TIME_TIME  # noqa: E402
+from vocab import (SPECIALTIES, SYMPTOMS, TIME_SCOPE, TIME_DAY, TIME_TIME,  # noqa: E402
+                   INTENT_TOKENS, ANSWER_TOKENS)
 
-INTENTS = ["<BOOK>", "<RESCHEDULE>", "<CANCEL>", "<UNSUPPORTED>"]
+INTENTS = list(INTENT_TOKENS.values()) + list(ANSWER_TOKENS.values())
+# интенты без слотов: сразу END_FRAME (unsupported и тривиальные да/нет)
+BARE_INTENTS = {INTENT_TOKENS["unsupported"], *ANSWER_TOKENS.values()}
 SPECIALTY_TOKENS = [e["token"] for e in SPECIALTIES.values()] + ["<UNKNOWN_SPECIALTY>"]
 SYMPTOM_TOKENS = [e["token"] for e in SYMPTOMS.values()]
 # факторы времени берём из словаря генератора (сетка слотов T_H08_00..
@@ -86,7 +89,7 @@ class FrameAutomaton:
             return
 
         if self.state == "intent":
-            self.state = "end_frame" if tok == "<UNSUPPORTED>" else "specialty"
+            self.state = "end_frame" if tok in BARE_INTENTS else "specialty"
         elif self.state == "specialty":
             self.state = "time"
         elif self.state == "time":

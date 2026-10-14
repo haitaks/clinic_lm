@@ -1,26 +1,34 @@
 # -*- coding: utf-8 -*-
 """NLU-слой менеджера диалога.
 
-Контракт: NluClient.parse(текст, сегодня) → Frame. Дальше менеджер диалога
-работает только с фреймом («модель разбирает строку на токены, дальше
-работаем по скрипту»). Реализации:
+Контракт: NluClient.parse(текст, сегодня, options) → Frame. Дальше
+менеджер диалога работает только с фреймом («модель разбирает строку на
+токены, дальше работаем по скрипту»). Реализации:
 
 - RuleNlu — детерминированный словарный разбор (Приложения А.1–А.3,
-  триггеры сценариев раздела 5). Используется в тестах и демо, пока
-  самописная модель не переобучена на полный каталог интентов.
+  триггеры раздела 5). Используется в демо, пока не подключена модель.
+- NatashaNames — модель имён (NamesExtractor) для дозаполнения Frame.fio.
+- FixtureNlu — RuleNlu + подстановка ФИО из списка пациентов Заглушки
+  МИС (демо/ручные прогоны).
 - FrameModelNlu — адаптер к самописной frame-модели
   (train/constrained.generate_frame, models/model.pt). Загружается лениво.
+- TaggerNlu — адаптер к теггеру из tagger/ (один forward: интент + теги
+  SPEC/SYM/TIME, tagger/tagger.pt). <UNSUPPORTED> — авторитетное решение
+  (other): причину не разбираем, запрос уходит оператору с текстом реплики.
 - LlmNlu — готовая LLM через OpenAI-совместимый HTTP-эндпоинт
-  (TEL_LLM_BASE_URL / TEL_LLM_MODEL / TEL_LLM_API_KEY).
+  (TEL_LLM_*; вывод ограничен json-схемой фрейма — constrained decoding).
 
 Слоты, которые модель не заполнила (ФИО, дата рождения, полис, да/нет),
 дозаполняются детерминированными парсерами slots.py — контур одинаков
-для всех реализаций.
+для всех реализаций. Врача по симптомам модель НЕ выбирает: специальность
+берётся из реплики, порядок записи — из таблицы 2.3 (clinic_data).
 """
 from __future__ import annotations
 
 import json
 import os
+import re
+import urllib.error
 import urllib.request
 from datetime import date
 
@@ -31,21 +39,24 @@ from .schema import Frame, Fio, Intent, TimePrefs
 # ---------------------------------------------------------------------------
 # Детерминированные таблицы интентов (триггеры раздела 5 + Приложение А.2).
 # Порядок важен: сначала специфичные действия, потом запись, потом справки.
+# Жалоба/медвопрос/красные флаги ловит сквозной слой safety.py.
 
 _INTENT_PATTERNS: list[tuple[Intent, tuple[str, ...]]] = [
-    (Intent.RESCHEDULE, ("перенесите", "перенести", "перезапишите", "перезаписаться",
-                         "поменять время", "сдвинуть", "на другой день",
-                         "перепишите", "не могу прийти", "не смогу прийти",
-                         "не смогу прийти в", "перенесите на", "не получится",
+    (Intent.RESCHEDULE, ("перенесите", "перенести", "перезапишите",
+                         "перезаписаться", "поменять время", "сдвинуть",
+                         "на другой день", "перепишите", "не могу прийти",
+                         "не смогу прийти", "не смогу прийти в",
+                         "перенесите на", "не получится",
                          "не получится прийти", "не смогу прийти завтра")),
     (Intent.CANCEL, ("отмените", "отменить", "не приду", "не приедем",
                      "снять запись", "снимите запись", "вычеркните",
                      "уже не надо", "уже не нужно", "отмени запись",
                      "не нужна запись", "выздоровел", "отмените мою")),
     (Intent.CHECK_BOOKING, ("на когда я записан", "на когда записана",
-                            "во сколько мне", "какой кабинет", "когда мой прием",
-                            "когда моя запись", "записан ли", "записана ли",
-                            "на какое время", "мой талон", "у меня запись есть",
+                            "во сколько мне", "какой кабинет",
+                            "когда мой прием", "когда моя запись",
+                            "записан ли", "записана ли", "на какое время",
+                            "мой талон", "у меня запись есть",
                             "есть ли запись", "куда мне прийти")),
     (Intent.HOME_VISIT, ("вызвать врача", "вызовите врача", "врача на дом",
                          "врача домой", "на дом", "домой врача",
@@ -58,14 +69,16 @@ _INTENT_PATTERNS: list[tuple[Intent, tuple[str, ...]]] = [
                          "анализы пришли")),
     (Intent.PAID, ("сколько стоит", "стоимость", "цена", "платно",
                    "за деньги", "по прайсу")),
-    (Intent.DOCS, ("прикрепиться", "прикрепление", "прикреплен", "прикреплена",
-                   "как прикрепиться", "справка", "справку", "больничный",
-                   "выписку", "выписка", "рецепт", "что взять", "что взять с собой",
-                   "документы", "медкомиссия", "медкомиссию")),
-    (Intent.SCHEDULE, ("когда принимает", "график", "расписание", "до скольки",
-                       "работаете ли", "во сколько работает", "когда работает",
-                       "часы работы", "когда прием", "когда ведет прием",
-                       "когда дежурный", "когда дежурирует")),
+    (Intent.DOCS, ("прикрепиться", "прикрепление", "прикреплен",
+                   "прикреплена", "как прикрепиться", "справка", "справку",
+                   "больничный", "выписку", "выписка", "рецепт",
+                   "что взять", "что взять с собой", "документы",
+                   "медкомиссия", "медкомиссию")),
+    (Intent.SCHEDULE, ("когда принимает", "график", "расписание",
+                       "до скольки", "работаете ли", "во сколько работает",
+                       "когда работает", "часы работы", "когда прием",
+                       "когда ведет прием", "когда дежурный",
+                       "когда дежурирует")),
     (Intent.BOOK, ("запишите", "записаться", "записать", "талон", "номерок",
                    "попасть на прием", "на прием к", "хочу к", "нужно к",
                    "мне бы к", "мне к", "надо к", "нужна запись",
@@ -103,16 +116,16 @@ _EMERGENCY_CLEARED_WORDS = ("год назад", "было раньше", "уж�
 _AMBULANCE_CALLED_WORDS = ("уже вызвали", "скорая едет", "уже позвонили",
                            "скорую вызвали", "скорая уже", "дожидаюсь скорую")
 _OPT_OUT_WORDS = ("не звоните", "хватит звонить", "не звоните больше")
-_WRONG_PERSON_WORDS = ("это не она", "это не я", "нет это не", "не ее", "не её",
-                       "другой человек", "это сын", "это дочь", "муж взял")
+_WRONG_PERSON_WORDS = ("это не она", "это не я", "нет это не", "не ее",
+                       "не её", "другой человек", "это сын", "это дочь",
+                       "муж взял")
 _HOSPITAL_WORDS = ("умер", "умерла", "в стационаре", "в больнице",
                    "реанимации", "скончался")
 
 
 class RuleNlu:
     """Словарная заглушка модели: заполняет фрейм ключевыми словами
-    и детерминированными парсерами slots.py. Используется в тестах
-    и демо, пока не подключена реальная модель."""
+    и детерминированными парсерами slots.py."""
 
     def parse(self, text: str, today: date,
               options: list | None = None) -> Frame:
@@ -202,14 +215,48 @@ def _match_faq_id(text: str) -> str | None:
     return best[1] if best else None
 
 
-class FixtureNlu(RuleNlu):
-    """Заглушка «другой модели» извлечения ФИО для тестов и демо.
+class NatashaNames:
+    """Модель имён на Natasha (NamesExtractor): ФИО пациента, если основной
+    NLU не заполнил. Загрузка natasha ленивая — пакет тяжёлый.
 
-    Реальная модель имён подключается отдельным контуром (как FrameModelNlu
-    или LlmNlu); здесь ФИО подставляется сопоставлением с известным списком
-    пациентов Заглушки МИС: если в реплике прозвучали все части имени —
-    Frame.fio заполнен. Остальные слоты — как у RuleNlu.
+    Фильтры от шума экстрактора: месяцы («марта» как имя) и одиночные
+    фамилии без имени/отчества (чаще всего это врач, не пациент).
     """
+
+    _MONTHS = {"января", "февраля", "марта", "апреля", "мая", "июня",
+               "июля", "августа", "сентября", "октября", "ноября",
+               "декабря"}
+
+    def __init__(self):
+        self._extractor = None
+
+    def extract(self, text: str) -> Fio | None:
+        if self._extractor is None:
+            from natasha import MorphVocab, NamesExtractor
+            self._extractor = NamesExtractor(MorphVocab())
+        best: tuple[int, Fio] | None = None
+        for m in self._extractor(text):
+            f = m.fact
+            last = (f.last or "").strip()
+            first = (f.first or "").strip()
+            middle = (f.middle or "").strip()
+            if len(last) < 3 or not (first or middle):
+                continue
+            if (first.lower() in self._MONTHS
+                    or last.lower() in self._MONTHS
+                    or middle.lower() in self._MONTHS):
+                continue
+            score = bool(first) + bool(middle)
+            if best is None or score > best[0]:
+                best = (score, Fio(last, first, middle))
+        return best[1] if best else None
+
+
+class FixtureNlu(RuleNlu):
+    """Заглушка «другой модели» извлечения ФИО для демо: ФИО
+    подставляется сопоставлением с известным списком пациентов Заглушки
+    МИС. Остальные слоты — как у RuleNlu. В прод-контуре ФИО извлекает
+    Natasha (NatashaNames) или основная модель."""
 
     def __init__(self, known: list[Fio]):
         self.known = [
@@ -227,25 +274,41 @@ class FixtureNlu(RuleNlu):
                 return frame
         # неизвестного пациента «модель» извлекает по заглавным буквам —
         # эвристика заглушки, не менеджера диалога
-        from .schema import Fio as _Fio
         caps = [w.strip(",.") for w in text.split()
                 if len(w) > 2 and w[0].isupper() and w[1:].isalpha()]
         if len(caps) >= 2:
-            frame.fio = _Fio(*caps[:3])
+            frame.fio = Fio(*caps[:3])
             frame.unknown = False
         return frame
 
 
 # ---------------------------------------------------------------------------
 # Адаптер самописной frame-модели (train/constrained.generate_frame).
-# Модель переобучается на полный каталог интентов отдельно (другая машина).
+# Модель обучена на полный каталог интентов телефонного регистратурного
+# контура (INTENT_TOKENS в synth/vocab.py) + тривиальные да/нет.
 
-_TOKEN2INTENT = {"<BOOK>": Intent.BOOK, "<RESCHEDULE>": Intent.RESCHEDULE,
-                 "<CANCEL>": Intent.CANCEL, "<UNSUPPORTED>": Intent.OTHER}
+_TOKEN2INTENT = {
+    "<BOOK>": Intent.BOOK,
+    "<RESCHEDULE>": Intent.RESCHEDULE,
+    "<CANCEL>": Intent.CANCEL,
+    "<CHECK_BOOKING>": Intent.CHECK_BOOKING,
+    "<HOME_VISIT>": Intent.HOME_VISIT,
+    "<SCHEDULE>": Intent.SCHEDULE,
+    "<LAB_STATUS>": Intent.LAB_STATUS,
+    "<PAID>": Intent.PAID,
+    "<WAITLIST>": Intent.WAITLIST,
+    "<DOCS>": Intent.DOCS,
+    "<COMPLAINT>": Intent.COMPLAINT,
+    "<MEDICAL>": Intent.MEDICAL,
+    "<UNSUPPORTED>": Intent.OTHER,
+}
+_TOKEN2ANSWER = {"<YES>": True, "<NO>": False}
 _TOKEN2SPECIALTY = {"<GP>": "gp", "<DENTIST>": "dentist",
+                    "<DERMATOLOGIST>": "dermatologist",
                     "<GYNECOLOGIST>": "gynecologist",
                     "<OPHTHALMOLOGIST>": "ophthalmologist",
                     "<NEUROLOGIST>": "neurologist",
+                    "<PSYCHOLOGIST>": "psychologist",
                     "<SURGEON>": "surgeon", "<ENT>": "ent"}
 _TIME_FACTORS_DAY = {"T_MON": 0, "T_TUE": 1, "T_WED": 2, "T_THU": 3,
                      "T_FRI": 4, "T_SAT": 5, "T_SUN": 6}
@@ -258,15 +321,17 @@ class FrameModelNlu:
     """Модель из train/constrained.py: текст → строка фрейма → Frame.
 
     Загрузка тяжёлых зависимостей (torch) — ленивая, при первом parse().
-    Пока модель знает только BOOK/RESCHEDULE/CANCEL/UNSUPPORTED —
-    остальные поля берутся из детерминированных парсеров.
+    Незнакомые слова входа заменяются ближайшим знакомым синонимом по e5
+    (train/oov_input.py, TEL_FMODEL_RESOLVER=0 — выключить).
     """
 
+    _shared: dict | None = None      # кэш: model, tokenizer, generate_frame
+
     def __init__(self, model_path: str = "models/model.pt",
-                 tokenizer_path: str = "models/tokenizer.json"):
+                 tokenizer_path: str = "models/tokenizer_v2.json"):
         self.model_path = model_path
         self.tokenizer_path = tokenizer_path
-        self._ready = False
+        self._resolver = None
 
     def _load(self):
         import sys
@@ -275,27 +340,51 @@ class FrameModelNlu:
         import torch
         from tokenizers import Tokenizer
 
+        if FrameModelNlu._shared is not None:
+            return
+
         root = Path(__file__).resolve().parent.parent
         sys.path.insert(0, str(root / "train"))
         from constrained import generate_frame  # noqa: E402
         from model import TinyGPT               # noqa: E402
 
-        self._generate_frame = generate_frame
         tok = Tokenizer.from_file(str(root / self.tokenizer_path))
-        state = torch.load(root / self.model_path, map_location="cpu")
-        self._model = TinyGPT(vocab_size=state["embed.weight"].shape[0])
-        self._model.load_state_dict(state)
-        self._model.eval()
-        self._tokenizer = tok
-        self._torch = torch
-        self._ready = True
+        state = torch.load(root / self.model_path, map_location="cpu",
+                           weights_only=False)
+        cfg = state.get("config", {})
+        model = TinyGPT(
+            vocab_size=state["model"]["tok.weight"].shape[0],
+            d_model=cfg.get("d_model", 256),
+            n_layers=cfg.get("n_layers", 8),
+            n_heads=cfg.get("n_heads", 8))
+        model.load_state_dict(state["model"])
+        model.eval()
+        FrameModelNlu._shared = {"model": model, "tok": tok,
+                                 "generate_frame": generate_frame}
 
     def parse(self, text: str, today: date,
               options: list | None = None) -> Frame:
-        if not self._ready:
-            self._load()
-        _, semantic = self._generate_frame(
-            self._model, self._tokenizer, text, device="cpu")
+        self._load()
+        shared = FrameModelNlu._shared
+        if self._resolver is None and os.environ.get(
+                "TEL_FMODEL_RESOLVER", "1") != "0":
+            try:
+                from train.oov_input import E5SynonymResolver
+                self._resolver = E5SynonymResolver()
+            except Exception:
+                self._resolver = False     # e5 недоступен — без резолвера
+        if self._resolver:
+            text = self._resolver(text)
+        tok = shared["tok"]
+        ids = {t: tok.token_to_id(t) for t in
+               ("<BOS>", "<USER>", "<ASSISTANT>", "<EOS>", "<PAD>")}
+        assert all(v is not None for v in ids.values()), \
+            f"токенизатор {self.tokenizer_path} без спецтокенов диалога"
+        _, semantic = shared["generate_frame"](
+            shared["model"], tok, text, device="cpu",
+            bos=ids["<BOS>"], user=ids["<USER>"],
+            assistant=ids["<ASSISTANT>"], eos=ids["<EOS>"],
+            pad=ids["<PAD>"])
         return frame_from_tokens(semantic, text, today, options)
 
 
@@ -308,8 +397,14 @@ def frame_from_tokens(semantic: list[str], text: str, today: date,
     for tok in semantic:
         if tok in _TOKEN2INTENT:
             frame.intent = _TOKEN2INTENT[tok]
+        elif tok in _TOKEN2ANSWER:
+            frame.answer = _TOKEN2ANSWER[tok]
         elif tok in _TOKEN2SPECIALTY:
-            frame.specialty = _TOKEN2SPECIALTY[tok]
+            spec = _TOKEN2SPECIALTY[tok]
+            # таблица 2.3 телефонии уже словаря модели: чужие ключи
+            # (dermatologist, psychologist) отбрасываем в страховку
+            if spec in SPECIALTIES:
+                frame.specialty = spec
         elif tok == "<TIME>":
             in_time = True
         elif tok == "</TIME>":
@@ -326,7 +421,8 @@ def frame_from_tokens(semantic: list[str], text: str, today: date,
 
     # дозаполнение словарной заглушкой (ФИО — только модель имён)
     det = RuleNlu().parse(text, today, options)
-    frame.answer, frame.maybe = det.answer, det.maybe
+    if frame.answer is None:
+        frame.answer, frame.maybe = det.answer, det.maybe
     frame.dob = det.dob
     frame.policy_no = det.policy_no
     frame.choice = det.choice
@@ -356,13 +452,64 @@ def frame_from_tokens(semantic: list[str], text: str, today: date,
     return frame
 
 
+class TaggerNlu:
+    """Теггер из tagger/ (один forward: интент + BIO-теги SPEC/SYM/TIME)
+    → токены фрейма → Frame. Загрузка тяжёлых зависимостей ленивая,
+    веса кэшируются на уровне класса (каждый звонок создаёт свой NLU).
+
+    Теггер знает 4 интента (BOOK/RESCHEDULE/CANCEL/UNSUPPORTED) и 9
+    специальностей; <UNSUPPORTED> — авторитетное решение (other): причину
+    не разбираем, запрос уходит оператору с текстом реплики. Словарная
+    страховка дозаполняет только незаполненные слоты, интент не
+    перекрывает. После переобучения на полный каталог расширить
+    _TOKEN2INTENT/_TOKEN2SPECIALTY — адаптер подхватит сам.
+    """
+
+    _shared: dict | None = None      # кэш: predict_frame, model, tokenizer
+
+    def __init__(self, model_path: str = "tagger/tagger.pt",
+                 tokenizer_path: str = "models/tokenizer.json"):
+        self.model_path = model_path
+        self.tokenizer_path = tokenizer_path
+
+    def _load(self):
+        import sys
+        from pathlib import Path
+
+        import torch
+        from tokenizers import Tokenizer
+
+        root = Path(__file__).resolve().parent.parent
+        sys.path.insert(0, str(root / "tagger"))
+        from evaluate import predict_frame  # noqa: E402
+        from model import Tagger             # noqa: E402
+
+        tok = Tokenizer.from_file(str(root / self.tokenizer_path))
+        ckpt = torch.load(root / self.model_path, map_location="cpu",
+                          weights_only=False)
+        model = Tagger(tok.get_vocab_size())
+        model.load_state_dict(ckpt["model"])
+        model.eval()
+        TaggerNlu._shared = {"fn": predict_frame, "model": model, "tok": tok}
+
+    def parse(self, text: str, today: date,
+              options: list | None = None) -> Frame:
+        if TaggerNlu._shared is None:
+            self._load()
+        shared = TaggerNlu._shared
+        frame_str = shared["fn"](shared["model"], shared["tok"],
+                                 text, device="cpu")
+        return frame_from_tokens(frame_str.split(), text, today, options)
+
+
 # ---------------------------------------------------------------------------
 # Готовая LLM через OpenAI-совместимый эндпоинт (самостоятельный контур —
 # раздел 8 регламента: только аттестованный/локальный эндпоинт).
 
 _LLM_SYSTEM_PROMPT = """Ты — семантический парсер реплик пациента поликлиники (русский язык, текст после ASR).
 Верни ТОЛЬКО JSON без пояснений со схемой:
-{"intent": "I-01..I-14|null", "specialty": "gp|pediatrician|surgeon|ophthalmologist|ent|gynecologist|dentist|cardiologist|neurologist|endocrinologist|gastroenterologist|urologist|pulmonologist|prophylaxis|fluorography|ultrasound|null",
+{"intent": "book|reschedule|cancel|check_booking|home_visit|schedule|lab_status|paid|waitlist|docs|complaint|medical|other|null",
+ "specialty": "gp|pediatrician|surgeon|surgeon_child|ophthalmologist|ophthalmologist_child|ent|ent_child|gynecologist|dentist|cardiologist|neurologist|endocrinologist|gastroenterologist|urologist|pulmonologist|prophylaxis|fluorography|ultrasound|null",
  "doctor": "фамилия|null", "answer": true|false|null, "maybe": true|false,
  "fio": {"last":"","first":"","patronymic":""}|null, "dob": "YYYY-MM-DD|null",
  "policy_no": "16 цифр|null", "time": {"date":"YYYY-MM-DD|null","weekday":0-6|null,"daypart":"morning|afternoon|evening|early|late|null","exclude_weekday":0-6|null},
@@ -372,20 +519,111 @@ _LLM_SYSTEM_PROMPT = """Ты — семантический парсер реп�
  "opt_out": true|false, "wrong_person": true|false, "hospital": true|false,
  "for_child": true|false, "for_other_person": true|false, "faq_id": "строка|null",
  "unknown": true|false}
-Интенты: I-01 запись, I-02 перенос, I-03 отмена, I-04 проверка записи, I-05 врач на дом, I-06 график, I-07 анализы, I-08 платное, I-09 лист ожидания, I-10 документы/прикрепление, I-12 жалоба, I-13 медицинский вопрос, I-14 прочее.
+Интенты: book запись на приём, reschedule перенос, cancel отмена, check_booking проверка своей записи, home_visit врач на дом, schedule график/режим работы, lab_status готовность анализов, paid платные услуги, waitlist лист ожидания, docs документы/прикрепление/справки, complaint жалоба, medical медицинский вопрос (лекарства/лечение/оценка результатов), other прочее.
+Специальность указывай только если пациент назвал её явно; врача по симптомам НЕ выбирай.
 choice — индекс варианта пациента из пронумерованного списка в запросе (0-базированный), если ассистент предлагал варианты.
 Отвечай строго по смыслу реплики; если поле неизвестно — null/false."""
 
 
+def _extract_json(content: str) -> dict:
+    """Достать JSON-объект из ответа LLM: слабые локальные модели любят
+    обернуть его в ```json-забор или сопроводить текстом."""
+    s = content.strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```[a-zA-Z]*\s*", "", s)
+        s = re.sub(r"\s*```\s*$", "", s).strip()
+    start = s.find("{")
+    if start < 0:
+        raise ValueError(f"в ответе LLM нет JSON: {content[:200]!r}")
+    obj, _ = json.JSONDecoder().raw_decode(s[start:])
+    return obj
+
+
+def _nullable_str(**constraints: int) -> dict:
+    """Схема nullable-строки: {"type": ["string","null"]} + ограничения
+    длины (llama.cpp переводит их в грамматику)."""
+    schema: dict = {"type": ["string", "null"]}
+    schema.update(constraints)
+    return schema
+
+
+def _build_frame_schema() -> dict:
+    """JSON Schema фрейма для response_format=json_schema: сервер строит
+    из неё грамматику constrained decoding — модель физически не может
+    выдать JSON мимо схемы. Специальности и интенты — из кода
+    (SPECIALTIES / Intent), не руками."""
+    properties = {
+        "intent": {"enum": [i.value for i in Intent] + [None]},
+        "specialty": {"enum": [*SPECIALTIES, None]},
+        "doctor": _nullable_str(),
+        "answer": {"type": ["boolean", "null"]},
+        "maybe": {"type": "boolean"},
+        "fio": {
+            "type": ["object", "null"],
+            "properties": {
+                "last": {"type": "string"},
+                "first": {"type": "string"},
+                "patronymic": {"type": "string"},
+            },
+            "required": ["last", "first", "patronymic"],
+            "additionalProperties": False,
+        },
+        "dob": _nullable_str(minLength=10, maxLength=10),
+        "policy_no": _nullable_str(minLength=16, maxLength=16),
+        "time": {
+            "type": ["object", "null"],
+            "properties": {
+                "date": _nullable_str(minLength=10, maxLength=10),
+                "weekday": {"type": ["integer", "null"],
+                            "minimum": 0, "maximum": 6},
+                "daypart": {"enum": ["morning", "afternoon", "evening",
+                                     "early", "late", None]},
+                "exclude_weekday": {"type": ["integer", "null"],
+                                    "minimum": 0, "maximum": 6},
+            },
+            "required": ["date", "weekday", "daypart", "exclude_weekday"],
+            "additionalProperties": False,
+        },
+        "choice": {"type": ["integer", "null"], "minimum": 0},
+        "relation": {"enum": ["mother", "father", "guardian", "relative",
+                              "self", None]},
+        "more": {"type": "boolean"},
+        "best_doctor": {"type": "boolean"},
+        "paper_referral": {"type": "boolean"},
+        "emergency_cleared": {"type": "boolean"},
+        "ambulance_called": {"type": "boolean"},
+        "opt_out": {"type": "boolean"},
+        "wrong_person": {"type": "boolean"},
+        "hospital": {"type": "boolean"},
+        "for_child": {"type": "boolean"},
+        "for_other_person": {"type": "boolean"},
+        "faq_id": _nullable_str(),
+        "unknown": {"type": "boolean"},
+    }
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(properties),
+        "additionalProperties": False,
+    }
+
+
+_FRAME_SCHEMA = _build_frame_schema()
+
+
 class LlmNlu:
-    """OpenAI-совместимый /chat/completions → Frame. Конфигурация из env."""
+    """OpenAI-совместимый /chat/completions → Frame. Конфигурация из env
+    (TEL_LLM_BASE_URL / TEL_LLM_MODEL / TEL_LLM_API_KEY / TEL_LLM_TIMEOUT).
+    """
 
     def __init__(self, base_url: str | None = None, model: str | None = None,
-                 api_key: str | None = None, timeout: int = 10):
+                 api_key: str | None = None,
+                 timeout: int | None = None):
         self.base_url = (base_url or os.environ.get("TEL_LLM_BASE_URL", "")).rstrip("/")
         self.model = model or os.environ.get("TEL_LLM_MODEL", "")
         self.api_key = api_key or os.environ.get("TEL_LLM_API_KEY", "")
-        self.timeout = timeout
+        self.timeout = (timeout if timeout is not None else
+                        int(os.environ.get("TEL_LLM_TIMEOUT", "10")))
 
     def parse(self, text: str, today: date,
               options: list | None = None) -> Frame:
@@ -403,16 +641,42 @@ class LlmNlu:
             ],
             "temperature": 0,
         }
+        # constrained decoding: сервер строит из схемы грамматику и не даёт
+        # модели сгенерировать JSON мимо неё (TEL_LLM_SCHEMA=0 — выключить).
+        # Формат — OpenAI-стандарт (json_schema.json_schema.strict); llama.cpp
+        # его поддерживает, плоская вложенность schema: рядом с type — нет
+        # (молча игнорируется).
+        use_schema = os.environ.get("TEL_LLM_SCHEMA", "1") != "0"
+        if use_schema:
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "frame", "strict": True,
+                                "schema": _FRAME_SCHEMA},
+            }
+        data = self._post(payload)
+        if data is None and use_schema:
+            # эндпоинт не понял json_schema — раз без ограничения
+            payload.pop("response_format")
+            data = self._post(payload)
+        content = data["choices"][0]["message"]["content"]
+        return frame_from_json(_extract_json(content), text, today, options)
+
+    def _post(self, payload: dict) -> dict | None:
+        """POST /chat/completions; None — эндпоинт отверг запрос с
+        response_format (HTTP 400), иначе исключение уходит наверх."""
         req = urllib.request.Request(
             f"{self.base_url}/chat/completions",
             data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json",
                      "Authorization": f"Bearer {self.api_key}"},
         )
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            data = json.loads(resp.read().decode())
-        content = data["choices"][0]["message"]["content"]
-        return frame_from_json(json.loads(content), text, today, options)
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                return json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            if e.code == 400 and "response_format" in payload:
+                return None
+            raise
 
 
 def frame_from_json(data: dict, text: str, today: date,
@@ -440,13 +704,22 @@ def frame_from_json(data: dict, text: str, today: date,
                         fio.get("patronymic", ""))
     dob = data.get("dob")
     if isinstance(dob, str) and len(dob) == 10:
-        frame.dob = date.fromisoformat(dob)
+        try:
+            frame.dob = date.fromisoformat(dob)
+        except ValueError:
+            frame.dob = None
     pol = data.get("policy_no")
     frame.policy_no = pol if isinstance(pol, str) and len(pol) == 16 else None
     t = data.get("time") or {}
     if t.get("date") or t.get("weekday") or t.get("daypart") or t.get("exclude_weekday"):
+        t_date = None
+        if isinstance(t.get("date"), str) and len(t["date"]) == 10:
+            try:
+                t_date = date.fromisoformat(t["date"])
+            except ValueError:
+                t_date = None
         prefs = TimePrefs(
-            date=date.fromisoformat(t["date"]) if t.get("date") else None,
+            date=t_date,
             weekday=t.get("weekday"), daypart=t.get("daypart"),
             exclude_weekday=t.get("exclude_weekday"))
         frame.time_prefs = prefs
@@ -478,4 +751,4 @@ def frame_from_json(data: dict, text: str, today: date,
     return frame
 
 
-NluClient = RuleNlu | FrameModelNlu | LlmNlu
+NluClient = RuleNlu | FrameModelNlu | LlmNlu | TaggerNlu

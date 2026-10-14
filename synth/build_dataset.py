@@ -30,7 +30,7 @@ MANUAL_GOLD = [
     ("надо проверить зрение, сыну восемь лет",
      "book", "ophthalmologist", None, [], [], False),
     ("по записи к неврологу приходить или в живую очередь?",
-     "unsupported", None, None, [], [], False),
+     "schedule", "neurologist", None, [], [], False),
     ("отмените всё, уехал из города",
      "cancel", "unknown", None, [], [], False),
     ("перенесите мой приём к лору на завтра",
@@ -40,7 +40,7 @@ MANUAL_GOLD = [
     ("больно наступать на пятку, кто этим занимается?",
      "book", "unknown", None, [], [], True),
     ("сколько стоит приём с рентгеном",
-     "unsupported", None, None, [], [], False),
+     "paid", "unknown", None, [], [], False),
     ("третий день температура за 38, запишите к кому надо",
      "book", "unknown", None, [], ["fever"], True),
     ("здравствуйте! можно попасть к дерматологу сегодня?",
@@ -54,7 +54,7 @@ MANUAL_GOLD = [
     ("панические атаки участились, нужен специалист",
      "book", "psychologist", None, [], ["anxiety"], False),
     ("во сколько открываетесь",
-     "unsupported", None, None, [], [], False),
+     "schedule", "unknown", None, [], [], False),
 ]
 
 

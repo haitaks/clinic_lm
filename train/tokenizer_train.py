@@ -18,14 +18,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "synth"))
 
 from vocab import (SPECIALTIES, SYMPTOMS, TEMPORAL_ENTRIES,
-                   TIME_SCOPE, TIME_DAY, TIME_TIME)  # noqa: E402
+                   TIME_SCOPE, TIME_DAY, TIME_TIME,
+                   INTENT_TOKENS, ANSWER_TOKENS)  # noqa: E402
 
 SPECIAL_TOKENS = [
     "<PAD>", "<UNK>", "<BOS>", "<EOS>", "<USER>", "<ASSISTANT>",
     "<TIME>", "</TIME>", "<NEEDS_CLARIFICATION>", "<END_FRAME>",
-    "<BOOK>", "<RESCHEDULE>", "<CANCEL>", "<UNSUPPORTED>",
     "<UNKNOWN_SPECIALTY>", "<T_UNKNOWN>", "T_AMBIG",
-]
+] + list(INTENT_TOKENS.values()) + list(ANSWER_TOKENS.values())
 for entry in SPECIALTIES.values():
     SPECIAL_TOKENS.append(entry["token"])
 for entry in SYMPTOMS.values():
@@ -54,6 +54,13 @@ def corpus_texts():
 
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    # tokenizer.json — общий с теггером (его веса привязаны к старым id);
+    # расширенный каталог обучает свой токенизатор в tokenizer_v2.json
+    ap.add_argument("--out", default="models/tokenizer_v2.json")
+    args = ap.parse_args()
+
     tok = Tokenizer(models.BPE(unk_token=None))
     tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
     tok.decoder = decoders.ByteLevel()
@@ -71,9 +78,9 @@ def main():
     # add_special_tokens (AddedVocabulary матчит их до BPE)
     tok.add_special_tokens(SPECIAL_TOKENS)
 
-    out = ROOT / "models"
-    out.mkdir(exist_ok=True)
-    tok.save(str(out / "tokenizer.json"))
+    out = ROOT / args.out
+    out.parent.mkdir(exist_ok=True)
+    tok.save(str(out))
 
     # sanity: спецтокены неделимы, русский бьётся без UNK
     enc = tok.encode("хочу записаться к стоматологу в следующую пятницу вечером")
@@ -89,7 +96,7 @@ def main():
     assert all(i in enc_special.ids for i in ids), "спецтокен разбился на части!"
     print(f"токенов в словаре: {tok.get_vocab_size()}")
     print(f"пример: '{enc.tokens[:12]}'")
-    print(f"сохранено: {out / 'tokenizer.json'}")
+    print(f"сохранено: {out}")
 
 
 if __name__ == "__main__":

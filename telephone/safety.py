@@ -1,23 +1,26 @@
 # -*- coding: utf-8 -*-
-"""Сквозные правила, проверяемые на КАЖДОЙ реплике пациента (7.3).
+"""Сквозной слой безопасности: проверяется на КАЖДОЙ реплике пациента
+(раздел 7.3 регламента: «безопасность выше всего»).
 
-Порядок проверки — «безопасность выше всего» (7.1):
-красный флаг А (R-01) → флаг Б (R-11) → оператор (R-02) → жалоба (R-03) →
-«вы робот» → возражение против записи разговора (3.4) →
-острая зубная боль (R-09) → медицинский вопрос (R-04) → организация (R-14).
-
-Красные флаги распознаются по словарю 7.4: ложная тревога допустима,
-пропуск — нет. При подключении семантической NLU-модели этот слой
+Порядок: красный флаг А → флаг Б → просьба об операторе → жалоба →
+«вы робот» → возражение против записи разговора → острая зубная боль →
+медицинский вопрос. Словарь красных флагов — из раздела 7.4: ложная
+тревога допустима, пропуск — нет. При семантической NLU-модели этот слой
 остаётся обязательной страховкой.
+
+Здесь же два мини-потока: EmergencyFlow (С-14) и MedicalFlow (граничная
+фраза 3.8) — они прерывают/обслуживают любые сценарии.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from . import phrases as ph
 from . import textutils as tu
-from .schema import Priority, RouteRule, Target
+from .scenarios.common import Scenario, StepResult
+from .schema import EndCall, NotifySenior, Target, Transfer
 
-# Категория А — возможная угроза жизни → R-01 (103/112 + регистратор, P1)
+# Категория А — возможная угроза жизни: 103/112 + перевод, приоритет 1
 RED_FLAGS_A: list[list[str]] = [
     # Сердце, грудь
     ["боль в груди", "болит грудь", "давит за грудиной", "давит в груди",
@@ -59,7 +62,7 @@ RED_FLAGS_A: list[list[str]] = [
      "угрожает убить", "хочу умереть", "убью"],
 ]
 
-# Категория Б — острое состояние без явной угрозы жизни → R-11 (P1)
+# Категория Б — острое состояние без явной угрозы жизни → оператор, приоритет 1
 RED_FLAGS_B: list[list[str]] = [
     ["очень сильная боль", "невыносимо болит", "боль усиливается",
      "невыносимая боль"],
@@ -120,22 +123,16 @@ TOOTH_PAIN_WORDS = ["острая зубная боль", "травма зуба
                     "флюс", "зуб невыносимо", "разболелся зуб",
                     "сильно болит зуб"]
 
-ORGANIZATION_WORDS = {"полиции", "полиция", "телевидение",
-                      "юрист", "юриста", "юридическое", "юридический",
-                      "редакция", "редакции", "газета", "прессслужба"}
-
 
 @dataclass
-class PolicyHit:
-    """Сработавшее сквозное правило."""
+class SafetyHit:
+    """Сработавшее сквозное правило; решение применяет менеджер."""
 
-    kind: str                  # red_a / red_b / operator / complaint / robot /
-                               # recording_objection / medical / tooth /
-                               # organization
-    rule: RouteRule | None = None
-    target: Target | None = None
-    priority: Priority | None = None
-    phrase_group: str = ""     # сработавшая фраза/группа (для журнала)
+    kind: str                   # red_a / red_b / operator / complaint /
+                                # gratitude / complaint_written / robot /
+                                # recording_objection / tooth /
+                                # medical_values / medical
+    phrase: str = ""            # сработавшая фраза/группа (для журнала)
 
 
 def _match_phrases(text: str, groups: list[list[str]]) -> str | None:
@@ -162,41 +159,108 @@ def _operator_request(n: str) -> bool:
     return len(toks) <= 3
 
 
-def check_utterance(text: str) -> PolicyHit | None:
-    """Проверка реплики по сквозным правилам, приоритет — сверху вниз."""
+def check_utterance(text: str) -> SafetyHit | None:
+    """Проверка реплики, приоритет — сверху вниз (7.3)."""
     n = tu.normalize(text)
     phrase = _match_phrases(n, RED_FLAGS_A)
     if phrase:
-        return PolicyHit("red_a", RouteRule.R01, None, Priority.P1, phrase)
+        return SafetyHit("red_a", phrase)
     phrase = _match_phrases(n, RED_FLAGS_B)
     if phrase:
-        return PolicyHit("red_b", RouteRule.R11, Target.REGISTRAR,
-                         Priority.P1, phrase)
+        return SafetyHit("red_b", phrase)
     if _operator_request(n):
-        return PolicyHit("operator", RouteRule.R02, Target.REGISTRAR,
-                         Priority.P2, "operator")
+        return SafetyHit("operator", "operator")
     if any(w in n for w in COMPLAINT_WORDS):
         if any(w in n for w in GRATITUDE_WORDS):
-            return PolicyHit("gratitude", None, None, None, "gratitude")
+            return SafetyHit("gratitude", "gratitude")
         if any(w in n for w in COMPLAINT_WRITTEN_WORDS):
-            return PolicyHit("complaint_written", RouteRule.R03,
-                             Target.SENIOR, Priority.P3, "written")
-        return PolicyHit("complaint", RouteRule.R03, Target.SENIOR,
-                         Priority.P2, "complaint")
+            return SafetyHit("complaint_written", "written")
+        return SafetyHit("complaint", "complaint")
     if any(w in n for w in ROBOT_WORDS):
-        return PolicyHit("robot", None, None, None, "robot")
+        return SafetyHit("robot", "robot")
     if any(w in n for w in RECORDING_OBJECTION_WORDS):
-        return PolicyHit("recording_objection", None, None, None, "recording")
+        return SafetyHit("recording_objection", "recording")
     if any(w in n for w in TOOTH_PAIN_WORDS):
-        return PolicyHit("tooth", RouteRule.R09, Target.DENTISTRY,
-                         Priority.P2, "tooth")
+        return SafetyHit("tooth", "tooth")
     if any(w in n for w in MEDICAL_VALUES_WORDS):
-        return PolicyHit("medical_values", RouteRule.R04, Target.REGISTRAR,
-                         Priority.P3, "values")
+        return SafetyHit("medical_values", "values")
     if any(w in n for w in MEDICAL_WORDS):
-        return PolicyHit("medical", RouteRule.R04, Target.REGISTRAR,
-                         Priority.P3, "medical")
-    if set(n.split()) & ORGANIZATION_WORDS:
-        return PolicyHit("organization", RouteRule.R14, Target.SENIOR,
-                         Priority.P3, "organization")
+        return SafetyHit("medical", "medical")
     return None
+
+
+# ---------------------------------------------------------------------------
+# Экстренная ситуация (С-14): прерывает любой сценарий; никаких
+# уточняющих вопросов, идентификации и предложений записи.
+
+class EmergencyFlow(Scenario):
+    """Двухшаговый поток: 103/112 + перевод; «скорая уже вызвана» —
+    завершение; «всё в порядке» — возврат к прерванному сценарию."""
+
+    label = "emergency"
+
+    def start(self, ctx) -> StepResult:
+        ctx.collect("красный флаг", ctx.collected.get("красный флаг",
+                                                      "категория А"))
+        return StepResult(
+            label=self.label,
+            reply=ph.EMERGENCY_MAIN,
+            actions=[
+                Transfer(target=Target.OPERATOR, priority=1, card=ctx.card(
+                    "Экстренный: " + ctx.last_user[:120], "экстренная ситуация")),
+                NotifySenior("Экстренный звонок: " + ctx.last_user[:120]),
+            ],
+            status="emergency")
+
+    def handle_utterance(self, ctx, frame, text):
+        if frame.ambulance_called:
+            return StepResult(label=self.label, reply=ph.EMERGENCY_ALREADY,
+                              actions=[EndCall(reason="скорая вызвана")],
+                              done=True, status="emergency")
+        if frame.emergency_cleared:
+            # ложная тревога: фраза о 103 уже прозвучала (безопасность
+            # важнее) — возвращаемся к исходному сценарию
+            return StepResult(label=self.label,
+                              reply=ph.EMERGENCY_FALSE_ALARM +
+                              " Возвращаюсь к вашему вопросу.",
+                              resume_previous=True)
+        # пациент продолжает говорить об остром состоянии
+        return StepResult(
+            label=self.label,
+            reply=ph.EMERGENCY_TRANSFER,
+            actions=[Transfer(target=Target.OPERATOR, priority=1, card=ctx.card(
+                "Продолжает описывать острое состояние: "
+                + ctx.last_user[:100], "экстренная ситуация"))],
+            done=True, status="emergency")
+
+
+class MedicalFlow(Scenario):
+    """Граничная фраза 3.8: без советов, предложение записи к терапевту;
+    при настойчивости — перевод на оператора."""
+
+    label = "medical"
+
+    def __init__(self, reply: str = ""):
+        self.custom_reply = reply or ph.MEDICAL_BOUNDARY
+
+    def start(self, ctx):
+        return StepResult(label=self.label, reply=self.custom_reply,
+                          expecting="да/нет")
+
+    def handle_utterance(self, ctx, frame, text):
+        if frame.answer is True:
+            from .scenarios.booking import BookingFlow
+            return StepResult(label=self.label,
+                              handoff=BookingFlow(specialty="gp"))
+        if frame.answer is False:
+            return StepResult(label=self.label, reply=ph.ANYTHING_ELSE,
+                              done=True, status="info")
+        if frame.intent is not None or frame.faq_id is not None:
+            return StepResult(label=self.label, progress=False)
+        # пациент настаивает после граничной фразы → оператор
+        return StepResult(
+            label=self.label,
+            reply=ph.MEDICAL_PERSIST,
+            actions=[Transfer(target=Target.OPERATOR, priority=3, card=ctx.card(
+                "Медицинский вопрос, пациент настаивает", "медвопрос"))],
+            done=True, status="transferred")

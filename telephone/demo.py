@@ -18,6 +18,7 @@ from datetime import datetime
 from . import DialogManager, FixtureNlu, StubMis
 from .mis import DOCTORS
 from .schema import DtmfEvent, SilenceEvent, VoicemailEvent
+from .scenarios.common import render_card
 
 
 def _outbound(name: str, mis: StubMis):
@@ -79,7 +80,7 @@ def main() -> None:
 
     print("-" * 72)
     summary = dm.summary()
-    print(f"Код результата: {summary['result_code']}")
+    print(f"Итог звонка: {summary['status']}")
     print(f"Собрано: {summary['collected']}")
     print(f"SMS: {mis.sent_sms}")
     if mis.notified_senior:
@@ -91,7 +92,7 @@ def _print(turn) -> None:
     for a in turn.actions:
         kind = type(a).__name__
         if hasattr(a, "card"):
-            print(f"    [{kind}] {a.card.render()}")
+            print(f"    [{kind}] {render_card(a.card)}")
         else:
             print(f"    [{kind}] {a}")
 

@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
-"""База сценариев: контекст диалога, результат шага, каскад идентификации
-пациента (3.5) и общие блоки предложения слотов (≤3 вариантов, 3.2)."""
+"""Общие компоненты сценариев: контекст диалога, результат шага, каскад
+идентификации пациента (3.5) и предложение слотов (≤3 вариантов, 3.2)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from .. import phrases as ph
 from .. import textutils as tu
-from ..schema import (DmAction, EndCall, Intent, MisPatient, NotifySenior,
-                      Priority, ResultCode, RouteRule, ScenarioId, Slot,
-                      SmsRequest, Target, Transfer, TransferCard)
+from ..schema import (DmAction, EndCall, MisPatient, Slot, SmsRequest,
+                      Target, Transfer)
 from ..mis import SlotTaken
 
 
@@ -20,13 +19,13 @@ from ..mis import SlotTaken
 @dataclass
 class DialogContext:
     mis: object
-    now: datetime
+    now: object
     ani: str | None = None
     call_id: str = ""
     recording_consent: bool = True
     patient: MisPatient | None = None
     caller_relation: str | None = None     # self / mother / father / relative…
-    mis_errors: int = 0                    # сбои МИС подряд (R-06)
+    mis_errors: int = 0                    # сбои МИС подряд
     collected: dict[str, str] = field(default_factory=dict)
     journal: list[dict] = field(default_factory=list)
     last_user: str = ""
@@ -57,33 +56,44 @@ class DialogContext:
         return "не идентифицирован" + ("; названо: " + ", ".join(named)
                                        if named else "")
 
-    def build_card(self, rule: RouteRule, priority: Priority, summary: str,
-                   intent_label: str = "") -> TransferCard:
+    def card(self, summary: str, topic: str = "") -> dict:
+        """Карточка перевода — простой словарь для оператора."""
         phone = "скрыт"
         if self.ani:
             phone = "+7 ***-***-" + self.ani[-4:]
-        return TransferCard(
-            call_id=self.call_id,
-            time_start=self.journal[0]["ts"].strftime("%H:%M:%S")
-            if self.journal else self.now.strftime("%H:%M:%S"),
-            time_transfer=self.now.strftime("%H:%M:%S"),
-            phone=phone,
-            patient=self.patient_label(),
-            intent=intent_label or self.collected.get("интент", ""),
-            collected="; ".join(f"{k}: {v}" for k, v in self.collected.items()
-                                if k != "интент"),
-            rule=rule.value, priority=priority.value,
-            summary=summary[:200],
-            dissatisfaction=self.collected.get("недовольство") == "да",
-            recording_consent=self.recording_consent)
+        return {
+            "call_id": self.call_id,
+            "time": (self.journal[0]["ts"].strftime("%H:%M:%S")
+                     if self.journal else self.now.strftime("%H:%M:%S")),
+            "phone": phone,
+            "patient": self.patient_label(),
+            "topic": topic or self.collected.get("тема", ""),
+            "collected": "; ".join(f"{k}: {v}"
+                                   for k, v in self.collected.items()
+                                   if k != "тема"),
+            "summary": summary[:200],
+            "dissatisfaction": self.collected.get("недовольство") == "да",
+            "recording_consent": self.recording_consent,
+        }
 
     def sms_doctor(self, doctor: str) -> str:
         """«Кузнецова А. С.» — для SMS (фамилия + инициалы)."""
         parts = doctor.split()
-        if len(parts) >= 2:
-            return f"{parts[0]} {parts[1][0]}. {parts[2][0]}." if len(parts) > 2 \
-                else f"{parts[0]} {parts[1][0]}."
+        if len(parts) >= 3:
+            return f"{parts[0]} {parts[1][0]}. {parts[2][0]}."
+        if len(parts) == 2:
+            return f"{parts[0]} {parts[1][0]}."
         return doctor
+
+
+def render_card(card: dict) -> str:
+    rows = [("ID", card["call_id"]), ("время", card["time"]),
+            ("номер", card["phone"]), ("пациент", card["patient"]),
+            ("тема", card.get("topic") or "—"),
+            ("собрано", card.get("collected") or "—"),
+            ("резюме", card["summary"]),
+            ("недовольство", "да" if card.get("dissatisfaction") else "нет")]
+    return " | ".join(f"{k}: {v}" for k, v in rows)
 
 
 # ---------------------------------------------------------------------------
@@ -93,18 +103,20 @@ class DialogContext:
 class StepResult:
     reply: str = ""
     actions: list[DmAction] = field(default_factory=list)
+    label: str = ""                  # метка сценария для отладки
     done: bool = False
-    result_code: ResultCode | None = None
-    handoff: "Scenario | None" = None       # продолжить другим сценарием
-    progress: bool = True                   # False = не распознано (лестница R-05)
-    resume_previous: bool = False           # С-14: ложное срабатывание
-    mis_retry: bool = False                 # сбой МИС: не считаем непониманием
-    expecting: str = ""                     # подсказка: чего ждём дальше
+    status: str | None = None        # итог звонка (booked/…), если завершён
+    handoff: "Scenario | None" = None  # продолжить другим сценарием
+    progress: bool = True            # False = не распознано (лестница)
+    resume_previous: bool = False    # экстренный: ложное срабатывание
+    mis_retry: bool = False          # сбой МИС: не считаем непониманием
+    expecting: str = ""              # подсказка: чего ждём дальше
 
 
 class Scenario:
-    id: ScenarioId = ScenarioId.C01
-    intent_label: str = ""
+    """FSM сценария: шаги обсуждаются с менеджером через StepResult."""
+
+    label: str = ""
 
     def start(self, ctx: DialogContext) -> StepResult:
         raise NotImplementedError
@@ -160,20 +172,19 @@ def booking_sms(ctx: DialogContext, appt, kind: str = "booked") -> SmsRequest:
 
 
 def waitlist_transfer(ctx: DialogContext, summary: str) -> list[DmAction]:
-    """Нет слотов → лист ожидания (С-11, этап 2) + уведомление старшему
-    администратору о нарушении сроков ПГГ."""
+    """Нет слотов → лист ожидания + уведомление старшему администратору
+    о нарушении сроков ПГГ."""
+    from ..schema import NotifySenior
     return [
-        Transfer(target=Target.REGISTRAR, rule=RouteRule.R08,
-                 priority=Priority.P3, card=ctx.build_card(
-                     RouteRule.R08, Priority.P3, summary,
-                     "I-09 Лист ожидания")),
+        Transfer(target=Target.OPERATOR, priority=3, card=ctx.card(
+            summary, "лист ожидания")),
         NotifySenior(f"ПГГ под угрозой: {summary}"),
     ]
 
 
 # ---------------------------------------------------------------------------
 # Каскад идентификации пациента (3.5):
-# ФИО + дата рождения → повтор (по буквам) → полис ОМС → R-07
+# ФИО + дата рождения → повтор (по буквам) → полис ОМС → оператор
 
 class IdentificationFlow:
     def __init__(self, ask_phrase: str = ph.ASK_FIO_DOB):
@@ -183,7 +194,8 @@ class IdentificationFlow:
 
     def start(self, ctx: DialogContext) -> StepResult:
         self.state = "ask"
-        return StepResult(reply=self.ask_phrase, expecting="ФИО и дата рождения")
+        return StepResult(reply=self.ask_phrase,
+                          expecting="ФИО и дата рождения")
 
     def handle_event(self, ctx: DialogContext, ev) -> StepResult | None:
         if self.state == "policy" and hasattr(ev, "digits"):
@@ -220,7 +232,7 @@ class IdentificationFlow:
         pol = frame.policy_no
         if pol is None:
             if frame.unknown:
-                # пациент не может назвать полис → R-07 (3.5.6)
+                # пациент не может назвать полис → оператор (3.5.6)
                 return self._fail(ctx)
             if self._policy_retried:
                 return self._fail(ctx)
@@ -243,15 +255,14 @@ class IdentificationFlow:
         return None
 
     def _fail(self, ctx) -> StepResult:
-        card = ctx.build_card(RouteRule.R07, Priority.P3,
-                              "Пациент не найден по ФИО, дате рождения и полису",
-                              "Идентификация не удалась")
         return StepResult(
+            label="identify",
             reply=ph.IDENT_FAIL,
-            actions=[Transfer(target=Target.REGISTRAR, rule=RouteRule.R07,
-                              priority=Priority.P3, card=card),
-                     EndCall(reason="R-07")],
-            done=True, result_code=ResultCode.ESCALATED)
+            actions=[Transfer(target=Target.OPERATOR, priority=3, card=ctx.card(
+                "Пациент не найден по ФИО, дате рождения и полису",
+                "идентификация")),
+                EndCall(reason="не идентифицирован")],
+            done=True, status="transferred")
 
 
 # ---------------------------------------------------------------------------
@@ -282,7 +293,7 @@ class SlotChooser:
         slots = ctx.mis.free_slots(self.specialty, doctor=self.doctor,
                                    date_from=date_from, date_to=date_to,
                                    daypart=self.daypart, today=ctx.today)
-        # запись на сегодня — не позднее чем за 30 минут до слота (С-01)
+        # запись на сегодня — не позднее чем за 30 минут до слота
         cutoff = ctx.now + timedelta(minutes=30)
         slots = [s for s in slots
                  if s.date > ctx.today or
@@ -307,7 +318,7 @@ class SlotChooser:
                        + (f", врач {self.doctor}" if self.doctor else ""))
             return StepResult(reply=ph.NO_SLOTS,
                               actions=waitlist_transfer(ctx, summary),
-                              done=True, result_code=ResultCode.ESCALATED)
+                              done=True, status="transferred")
         self.all_slots = slots
         self.options = slots[:3]
         self.offset = 3
@@ -346,7 +357,7 @@ class SlotChooser:
                       + ph.NO_SLOTS,
                 actions=waitlist_transfer(
                     ctx, "Пациент не выбрал слоты: " + self.specialty),
-                done=True, result_code=ResultCode.ESCALATED)
+                done=True, status="transferred")
         if frame.best_doctor:
             self.options = self.all_slots[:3]
             return "again", StepResult(reply=ph.GOOD_DOCTOR.format(
@@ -356,5 +367,5 @@ class SlotChooser:
                 reply=ph.NO_SLOTS,
                 actions=waitlist_transfer(
                     ctx, "Пациент отказался от слотов: " + self.specialty),
-                done=True, result_code=ResultCode.ESCALATED)
+                done=True, status="transferred")
         return "miss", None

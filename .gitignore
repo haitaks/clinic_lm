@@ -16,3 +16,6 @@ models/_train_base.txt
 export_*.md
 *.pdf
 .zcode/
+
+# локальный инференс-стенд (llama.cpp, GGUF-модели, скрипты прогонов)
+.llm-local/

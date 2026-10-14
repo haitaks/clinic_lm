@@ -279,6 +279,46 @@ def sk_remove_cancel(p, rng):
     return s + "." + _symp_tail(p)
 
 
+@skeleton("verb_join", ["book"])
+def sk_verb_join(p, rng):
+    """Живой порядок без запятой: «мне бы записаться к терапевту»
+    (урок итерации: такая поверхность не покрывалась и уходила в OTHER)."""
+    verb = rng.choice(["хочу записаться", "можно записаться",
+                       "надо записаться", "хотел бы записаться",
+                       "хотела бы записаться", "запишите меня",
+                       "мне надо записаться", "мне нужно записаться",
+                       "мне бы записаться", "хочу попасть",
+                       "нужно попасть"])
+    s = f"{_lead(rng)}{verb} {p['syn']['dat']}"
+    if p["temporal"]:
+        s += f", {p['temporal']}"
+    return _cap(s) + "?" + _symp_tail(p)
+
+
+@skeleton("family", ["book"])
+def sk_family(p, rng):
+    """«записать дочку к педиатру» — запись в интересах ребёнка/родственника."""
+    who = rng.choice(["дочку", "сына", "ребёнка", "ребенка", "маму",
+                      "папу", "мужа", "бабушку"])
+    verb = rng.choice(["записать", "запишите", "нужно записать",
+                       "надо записать", "хочу записать"])
+    s = f"{_lead(rng)}{verb} {who} {p['syn']['dat']}"
+    if p["temporal"]:
+        s += f", {p['temporal']}"
+    return _cap(s) + "." + _symp_tail(p)
+
+
+@skeleton("cancel_notneed", ["cancel"])
+def sk_cancel_notneed(p, rng):
+    """Порядок слов живой речи: «отменить, уже не нужно»."""
+    tail = rng.choice(["уже не нужно", "уже не надо", "не актуально",
+                       "передумал", "передумала", "не смогу"])
+    s = f"{_lead(rng)}отменить, {tail}"
+    if p["syn"] and rng.random() < 0.5:
+        s += f", запись {p['syn']['dat']}"
+    return _cap(s) + "."
+
+
 @skeleton("ood_a", ["book"], ood=True)
 def sk_ood_a(p, rng):
     s = f"надо бы {p['syn']['dat']} попасть"
@@ -309,6 +349,200 @@ def sk_ood_c(p, rng):
     return s + "." + _symp_tail(p)
 
 
+# --- телефонный каталог (раздел 4 РГ-ТЕЛ-01) ---
+
+# Лиды живой речи — одни и те же для положительных интентов, чтобы
+# «подскажите, » не становилось маркером unsupported-класса
+# (урок итерации: «Подскажите, на когда я записана» уходило в OTHER).
+_POSITIVE_LEADS = ["", "подскажите, ", "извините, ", "здравствуйте, ",
+                   "добрый день, ", "будьте добры, ", "скажите "]
+
+
+def _lead(rng) -> str:
+    return rng.choice(_POSITIVE_LEADS)
+
+
+@skeleton("check_q", ["check_booking"])
+def sk_check_q(p, rng):
+    s = f"{_lead(rng)}{p['req']}"
+    if p["syn"]:
+        s += f" {p['syn']['dat']}"
+    return _cap(s) + "?"
+
+
+@skeleton("check_talon", ["check_booking"])
+def sk_check_talon(p, rng):
+    if p["syn"]:
+        return _cap(f"{_lead(rng)}мой талон {p['syn']['ugen']} на когда?")
+    return _cap(f"{_lead(rng)}мой талон на когда?")
+
+
+@skeleton("check_polite", ["check_booking"])
+def sk_check_polite(p, rng):
+    s = f"{p['greet']}! {p['req']}"
+    if p["syn"]:
+        s += f" {p['syn']['dat']}"
+    return _cap(s) + f", {p['polite']}?"
+
+
+@skeleton("sched_generic", ["schedule"])
+def sk_sched_generic(p, rng):
+    return _cap(f"{_lead(rng)}{p['req']}") + "?"
+
+
+@skeleton("sched_doctor", ["schedule"])
+def sk_sched_doctor(p, rng):
+    if p["syn"]:
+        return f"когда принимает {p['syn']['nom']}?"
+    return _cap(p["req"]) + "?"
+
+
+@skeleton("sched_doctor_hours", ["schedule"])
+def sk_sched_doctor_hours(p, rng):
+    if p["syn"]:
+        return f"в какие часы приём {p['syn']['ugen']}?"
+    return "в какие часы приём?"
+
+
+@skeleton("home_simple", ["home_visit"])
+def sk_home_simple(p, rng):
+    s = f"{_lead(rng)}{p['req']}"
+    if rng.random() < 0.3:
+        s += f", {p['polite']}"
+    return _cap(s) + "."
+
+
+@skeleton("home_ill", ["home_visit"])
+def sk_home_ill(p, rng):
+    return rng.choice([
+        "я плохо себя чувствую, нужен врач на дом",
+        "лежу с плохим самочувствием, врача на дом можно",
+        "не могу прийти в поликлинику, нужен врач на дом",
+        "выхожу из больницы, врач должен прийти домой",
+    ])
+
+
+@skeleton("lab_q", ["lab_status"])
+def sk_lab_q(p, rng):
+    s = p["req"]
+    if rng.random() < 0.25:
+        s += ", сдавал на прошлой неделе"
+    return _cap(s) + "?"
+
+
+@skeleton("lab_variants", ["lab_status"])
+def sk_lab_variants(p, rng):
+    return rng.choice([
+        "сдавала анализы, интересно готовы ли",
+        "кровь сдача когда будет готова",
+        "хочу узнать про результаты моих анализов",
+        "анализы которые сдавал готовы уже",
+        "проверьте пожалуйста мои анализы",
+        "результаты крови можно узнать",
+        "анализы после обследования готовы или нет",
+        "мои результаты анализов посмотреть",
+        "гормоны щитовидки готовы узнать бы",
+        "когда забрать результаты анализов",
+        "анализы готовые скажите",
+        "напомните когда анализы будут готовы",
+    ])
+
+
+@skeleton("paid_q", ["paid"])
+def sk_paid_q(p, rng):
+    s = p["req"]
+    if rng.random() < 0.3:
+        s += ", без полиса"
+    return _cap(s) + "?"
+
+
+@skeleton("paid_want", ["paid"])
+def sk_paid_want(p, rng):
+    return rng.choice([
+        "хочу платно обследоваться, сколько это стоит",
+        "по полису не выйдет, посчитайте мне платно",
+        "сколько будет стоить платный приём",
+        "цена платного приёма изменилась",
+    ])
+
+
+@skeleton("waitlist_q", ["waitlist"])
+def sk_waitlist_q(p, rng):
+    s = p["req"]
+    if rng.random() < 0.4:
+        s += ", время не подошло"
+    return _cap(s) + "."
+
+
+@skeleton("waitlist_variants", ["waitlist"])
+def sk_waitlist_variants(p, rng):
+    return rng.choice([
+        "времени нет, запишите меня в очередь",
+        "свободных окон нет, хочу в лист ожидания",
+        "поставьте в очередь на приём",
+        "нет подходящего времени, подожду освобождения",
+        "запишите в очередь, перезвоните когда освободится",
+        "хочу встать в лист ожидания к врачу",
+        "очередь на приём как попасть",
+        "в лист ожидания меня добавьте",
+        "буду ждать окно, запишите в очередь",
+        "позвоните как только время появится",
+    ])
+
+
+@skeleton("docs_q", ["docs"])
+def sk_docs_q(p, rng):
+    s = p["req"]
+    if rng.random() < 0.3:
+        s = f"{p['greet']}! {s}"
+    return _cap(s) + "?"
+
+
+@skeleton("docs_first_visit", ["docs"])
+def sk_docs_first_visit(p, rng):
+    return rng.choice([
+        "иду впервые, что взять с собой",
+        "первый раз к вам, какие документы нужны",
+        "впервые на приём, что приготовить из бумаг",
+        "что нужно принести на первый приём",
+    ])
+
+
+@skeleton("complaint_plain", ["complaint"])
+def sk_complaint_plain(p, rng):
+    s = p["req"]
+    if rng.random() < 0.35:
+        s = f"{p['greet']}! {s}"
+    return _cap(s) + "."
+
+
+@skeleton("complaint_emotion", ["complaint"])
+def sk_complaint_emotion(p, rng):
+    return rng.choice([
+        "это безобразие, хамят в регистратуре",
+        "мне нагрубили на телефоне, куда жаловаться",
+        "жалоба на вашего сотрудника, долго держали на линии",
+        "хочу написать жалобу на регистратуру",
+        "обслуживание ужасное, сообщите руководству",
+    ])
+
+
+@skeleton("medical_q", ["medical"])
+def sk_medical_q(p, rng):
+    s = p["req"]
+    if rng.random() < 0.3:
+        s = f"{p['greet']}! {s}"
+    return _cap(s) + "?"
+
+
+@skeleton("medical_symp", ["medical"], structural=True)
+def sk_medical_symp(p, rng):
+    """Медвопрос с симптомом из метки: «кашель, что принимать»."""
+    if not p["symp"]:
+        return sk_medical_q(p, rng)
+    return " ".join(_cap(x) + "." for x in p["symp"]) + " Что принимать?"
+
+
 # --------------------------------------------------------------- выбор
 
 HARD_PROBA = 0.25
@@ -319,6 +553,8 @@ def _choose_skeleton(frame: Frame, rng) -> str:
         return "conflict"
     if frame.intent == "book" and frame.needs_clarification:
         return "unknown_spec"
+    if frame.intent == "medical" and frame.aux.get("symp_medical"):
+        return "medical_symp"
     if frame.ood:
         return rng.choice(["ood_a", "ood_b", "ood_c"])
     if frame.intent == "cancel" and frame.specialty not in SPECIALTIES:
@@ -375,8 +611,32 @@ def build_unsupported(rng, aux: dict) -> str:
     return f"{lead}{base}?"
 
 
+# тривиальные пути: голые подтверждения внутри сценариев
+# (пулы живут в vocab.ANSWER_SURFACES — их же использует e5-резолвер)
+from vocab import ANSWER_SURFACES  # noqa: E402
+
+_YES_POOL = ANSWER_SURFACES["yes"]
+_NO_POOL = ANSWER_SURFACES["no"]
+
+
+def build_answer(rng, aux: dict, which: str) -> str:
+    pool = _YES_POOL if which == "yes" else _NO_POOL
+    return rng.choice(pool)
+
+
+def _is_answer(frame) -> bool:
+    from vocab import ANSWER_TOKENS
+    return frame.intent in ANSWER_TOKENS
+
+
 def realize(frame: Frame, rng) -> dict:
     """Один текст для фрейма. Повторные вызовы дают парафразы."""
+    if _is_answer(frame):
+        raw = build_answer(rng, frame.aux, frame.intent)
+        text, stt = stt_style(raw, rng)
+        return {"text": text, "skeleton": "answer", "stt": stt,
+                "temporal": None}
+
     if frame.intent == "unsupported":
         raw = build_unsupported(rng, frame.aux)
         text, stt = stt_style(raw, rng)

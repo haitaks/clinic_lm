@@ -43,7 +43,8 @@ def load(name, only_split=None):
 def main():
     ckpt_path = ROOT / "models" / (sys.argv[1] if len(sys.argv) > 1 else "model.pt")
     print(f"чекпоинт: {ckpt_path.name}")
-    tok = Tokenizer.from_file(str(ROOT / "models" / "tokenizer.json"))
+    tok = Tokenizer.from_file(str(ROOT / "models" /
+        (sys.argv[2] if len(sys.argv) > 2 else "tokenizer.json")))
     ckpt = torch.load(ckpt_path, map_location="cpu")
     model = TinyGPT(tok.get_vocab_size(), **ckpt["config"])
     model.load_state_dict(ckpt["model"])

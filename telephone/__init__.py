@@ -16,9 +16,10 @@
 """
 from .manager import DialogManager
 from .mis import MisUnavailable, SlotTaken, StubMis
-from .nlu import FixtureNlu, FrameModelNlu, LlmNlu, RuleNlu
-from .schema import DmTurn, Frame, Intent, ResultCode
+from .nlu import (FixtureNlu, FrameModelNlu, LlmNlu, NatashaNames, RuleNlu,
+                  TaggerNlu)
+from .schema import DmTurn, Frame, Intent
 
 __all__ = ["DialogManager", "RuleNlu", "FixtureNlu", "FrameModelNlu",
-           "LlmNlu", "StubMis", "MisUnavailable", "SlotTaken", "DmTurn",
-           "Frame", "Intent", "ResultCode"]
+           "LlmNlu", "TaggerNlu", "NatashaNames", "StubMis",
+           "MisUnavailable", "SlotTaken", "DmTurn", "Frame", "Intent"]

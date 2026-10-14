@@ -1,33 +1,62 @@
 # -*- coding: utf-8 -*-
-"""Менеджер диалога телефонии (регламент РГ-ТЕЛ-01).
+"""Менеджер диалога телефонии: маршрутизатор реплик по интентам.
 
-Конвейер хода:
+Поток хода:
 1. приветствие с уведомлением о записи разговора (3.3–3.4);
-2. сквозные правила на каждой реплике (policy, матрица 7.3) — красные
+2. сквозной слой безопасности на каждой реплике (safety.py) — красные
    флаги прерывают любой сценарий;
 3. активный сценарий получает фрейм NLU и реплику целиком;
-4. свободное состояние — классификация интента и запуск сценария;
+4. свободное состояние — диспетчер интентов (таблица ROUTING ниже);
 5. лестница непонимания (3.2): переспрос → предложение оператора →
-   автоперевод R-05.
+   автоперевод.
 
-Менеджер не знает, кто разобрал реплику (самописная frame-модель,
-готовая LLM или словарный RuleNlu) — только контракт NluClient.parse.
+Менеджер не знает, кто разобрал реплику (словарная заглушка, теггер или
+LLM) — только контракт NluClient.parse. Какого врача предложить — решает
+таблица 2.3 (clinic_data), не модель.
 """
 from __future__ import annotations
 
 from datetime import datetime
 
 from . import phrases as ph
-from . import policy
-from .mis import MisUnavailable
-from .schema import (Appointment, CallbackTask, DmAction, DmTurn, EndCall,
-                     Frame, Intent, MisPatient, NotifySenior, Priority,
-                     ResultCode, RouteRule, SmsRequest, Target, Transfer,
-                     VoicemailEvent)
-from .scenarios import EmergencyScenario, MedicalBoundaryScenario, \
-    ReminderCallScenario, create_scenario
-from .scenarios.base import DialogContext, Scenario, StepResult
+from . import safety
 from .clinic_data import target_available
+from .mis import MisUnavailable
+from .schema import (COMPLAINT, DROPPED, EMERGENCY, EndCall, Frame, Intent,
+                     MisPatient, NotifySenior, SmsRequest, Target, Transfer,
+                     VoicemailEvent, Appointment, CallbackTask, DmAction,
+                     DmTurn)
+from .scenarios.appointments import AppointmentsFlow
+from .scenarios.booking import BookingFlow
+from .scenarios.common import DialogContext, Scenario, StepResult
+from .scenarios.info import InfoFlow
+from .scenarios.reminder import ReminderFlow
+from .safety import EmergencyFlow, MedicalFlow
+
+# Интенты, закрываемые простым переводом: интент → (адресат, тема карточки)
+SIMPLE_TRANSFERS: dict[Intent, tuple[Target, str]] = {
+    Intent.HOME_VISIT: (Target.OPERATOR, "вызов врача на дом"),
+    Intent.LAB_STATUS: (Target.OPERATOR, "готовность анализов"),
+    Intent.WAITLIST: (Target.OPERATOR, "лист ожидания"),
+    Intent.PAID: (Target.PAID, "платные услуги"),
+    Intent.OTHER: (Target.OPERATOR, "запрос вне каталога"),
+}
+
+# Интенты, запускающие сценарий
+def _scenario_for(frame: Frame) -> Scenario | None:
+    if frame.intent == Intent.BOOK:
+        return BookingFlow(frame=frame)
+    if frame.intent == Intent.RESCHEDULE:
+        return AppointmentsFlow(frame=frame, action="reschedule")
+    if frame.intent == Intent.CANCEL:
+        return AppointmentsFlow(frame=frame, action="cancel")
+    if frame.intent == Intent.CHECK_BOOKING:
+        return AppointmentsFlow(frame=frame, action="check_booking")
+    if frame.intent in (Intent.SCHEDULE, Intent.DOCS):
+        return InfoFlow(frame=frame)
+    if frame.intent == Intent.MEDICAL:
+        return MedicalFlow()
+    return None
 
 
 class DialogManager:
@@ -41,10 +70,10 @@ class DialogManager:
             mis=mis, now=now, ani=ani,
             call_id=call_id or now.strftime("CALL-%Y%m%d-%H%M%S"))
         self.scenario: Scenario | None = None
-        self.suspended: Scenario | None = None      # прерван С-14
+        self.suspended: Scenario | None = None      # прерван экстренным
         self.pending_frames: list = []              # очередь интентов (раздел 4)
         self.state = "greeted"      # greeted / active / wrap / closed
-        self.result_code: ResultCode | None = None
+        self.status: str | None = None              # итог звонка
         self.misses = 0
         self.silence_streak = 0
         self.outbound = outbound
@@ -55,7 +84,7 @@ class DialogManager:
     def start_call(self) -> DmTurn:
         if self.outbound is not None:
             patient, appt = self.outbound
-            self.scenario = ReminderCallScenario(patient, appt)
+            self.scenario = ReminderFlow(patient, appt)
             self.state = "active"
             return self._finish_turn(self.scenario.start(self.ctx))
         return self._turn(DmTurn(reply=ph.GREETING_IN,
@@ -68,9 +97,9 @@ class DialogManager:
         self.ctx.log("patient", text)
         self.silence_streak = 0
 
-        hit = policy.check_utterance(text)
+        hit = safety.check_utterance(text)
         if hit is not None:
-            turn = self._apply_policy(hit)
+            turn = self._apply_safety(hit)
             if turn is not None:
                 return turn
 
@@ -81,6 +110,9 @@ class DialogManager:
                 self._run(self.scenario, frame, text))
 
         frame = self.nlu.parse(text, self.ctx.today)
+        if self.state == "greeted" and frame.answer is False \
+                and frame.intent is None:
+            return self._farewell()          # «нет, спасибо» на приветствие
         if self.state == "wrap":
             if frame.answer is False and frame.intent is None:
                 return self._farewell()
@@ -90,18 +122,20 @@ class DialogManager:
         if frame.intent is not None:
             if frame.extra_frames:
                 self.pending_frames.extend(frame.extra_frames)
-            return self._start_scenario(frame)
+            return self._dispatch(frame)
         # интент не распознан, но модель узнала вопрос из справочника FAQ
         if frame.faq_id is not None:
-            return self._start_scenario(frame, force_faq=True)
+            return self._dispatch(Frame(raw=text, faq_id=frame.faq_id,
+                                        specialty=frame.specialty,
+                                        doctor=frame.doctor))
         return self._ladder()
 
     def handle_event(self, ev) -> DmTurn:
-        """События телефонии: тишина (R-17), DTMF, автоответчик."""
+        """События телефонии: тишина, DTMF, автоответчик."""
         if self.state == "closed":
             return self._turn(DmTurn(reply=""))
         if isinstance(ev, VoicemailEvent) and isinstance(
-                self.scenario, ReminderCallScenario):
+                self.scenario, ReminderFlow):
             res = self.scenario.handle_event(self.ctx, ev)
             if res is not None:
                 return self._finish_turn(res)
@@ -113,20 +147,20 @@ class DialogManager:
                     return self._finish_turn(res)
             return self._turn(DmTurn(reply=""))
 
-        # тишина
+        # тишина ×2 — завершение
         self.silence_streak += 1
         if self.silence_streak == 1:
             return self._turn(DmTurn(reply=ph.SILENCE_1))
-        self.result_code = self.result_code or ResultCode.DROPPED
+        self.status = self.status or DROPPED
         self.state = "closed"
         return self._turn(DmTurn(
             reply=ph.SILENCE_2, actions=[EndCall(reason="тишина")],
-            result_code=self.result_code))
+            status=self.status))
 
     def summary(self) -> dict:
-        """Итог звонка: код результата, собранные данные, журнал."""
+        """Итог звонка: статус, собранные данные, журнал."""
         return {"call_id": self.ctx.call_id,
-                "result_code": self.result_code,
+                "status": self.status,
                 "state": self.state,
                 "patient": self.ctx.patient_label(),
                 "collected": dict(self.ctx.collected),
@@ -134,59 +168,96 @@ class DialogManager:
                 "journal": list(self.ctx.journal)}
 
     # ------------------------------------------------------------------
-    # Сквозные правила
+    # Диспетчер интентов
 
-    def _apply_policy(self, hit: policy.PolicyHit) -> DmTurn | None:
+    def _dispatch(self, frame: Frame) -> DmTurn:
+        intent = frame.intent
+        if intent in SIMPLE_TRANSFERS:
+            target, topic = SIMPLE_TRANSFERS[intent]
+            ack = ph.TRANSFER_ACK.get(intent.value, ph.TRANSFER_OPERATOR)
+            return self._finish_turn(StepResult(
+                label="transfer",
+                reply=ack + " " + ph.HANDOVER,
+                actions=self._transfer_actions(target, 3,
+                                               topic + "; " + frame.raw[:100],
+                                               topic),
+                done=True, status="transferred"))
+        if intent == Intent.COMPLAINT:
+            self.ctx.collect("недовольство", "да")
+            return self._finish_turn(StepResult(
+                label="complaint",
+                reply=ph.COMPLAINT_TRANSFER + " " + ph.HANDOVER,
+                actions=self._transfer_actions(
+                    Target.SENIOR, 2, "Жалоба: " + frame.raw[:120], "жалоба"),
+                done=True, status=COMPLAINT))
+        scenario = _scenario_for(frame)
+        if scenario is None:
+            return self._ladder()
+        self.scenario = scenario
+        self.state = "active"
+        return self._finish_turn(scenario.start(self.ctx))
+
+    # ------------------------------------------------------------------
+    # Сквозной слой безопасности
+
+    def _apply_safety(self, hit: safety.SafetyHit) -> DmTurn | None:
         if hit.kind == "red_a":
-            self.ctx.collect("красный флаг", hit.phrase_group)
-            if isinstance(self.scenario, EmergencyScenario):
-                # красный флаг звучит снова — немедленная передача P1
+            self.ctx.collect("красный флаг", hit.phrase)
+            if isinstance(self.scenario, EmergencyFlow):
+                # красный флаг звучит снова — немедленная передача
                 return self._finish_turn(StepResult(
+                    label="emergency",
                     reply=ph.EMERGENCY_TRANSFER,
                     actions=self._transfer_actions(
-                        Target.REGISTRAR, RouteRule.R01, Priority.P1,
-                        "Повторный красный флаг: " + hit.phrase_group),
-                    done=True, result_code=ResultCode.EMERGENCY))
+                        Target.OPERATOR, 1,
+                        "Повторный красный флаг: " + hit.phrase,
+                        "экстренная ситуация"),
+                    done=True, status=EMERGENCY))
             if self.scenario is not None:
                 self.suspended = self.scenario
-            self.scenario = EmergencyScenario()
+            self.scenario = EmergencyFlow()
             self.state = "active"
             # инцидент фиксируется сразу, даже если окажется ложной тревогой
-            self.result_code = ResultCode.EMERGENCY
+            self.status = EMERGENCY
             return self._finish_turn(self.scenario.start(self.ctx))
 
         if hit.kind == "red_b":
-            self.ctx.collect("красный флаг Б", hit.phrase_group)
+            self.ctx.collect("красный флаг Б", hit.phrase)
             return self._finish_turn(StepResult(
-                reply=ph.R11_TRANSFER + " " + ph.HANDOVER,
+                label="safety",
+                reply=ph.URGENT_TRANSFER + " " + ph.HANDOVER,
                 actions=self._transfer_actions(
-                    Target.REGISTRAR, RouteRule.R11, Priority.P1,
-                    "Острое состояние: " + hit.phrase_group),
-                done=True, result_code=ResultCode.ESCALATED))
+                    Target.OPERATOR, 1,
+                    "Острое состояние: " + hit.phrase, "острое состояние"),
+                done=True, status="transferred"))
 
         if hit.kind == "operator":
             return self._finish_turn(StepResult(
-                reply=ph.R02_TRANSFER + " " + ph.HANDOVER,
+                label="safety",
+                reply=ph.TRANSFER_OPERATOR + " " + ph.HANDOVER,
                 actions=self._transfer_actions(
-                    Target.REGISTRAR, RouteRule.R02, Priority.P2,
-                    "Пациент попросил сотрудника"),
-                done=True, result_code=ResultCode.ESCALATED))
+                    Target.OPERATOR, 2, "Пациент попросил сотрудника",
+                    "перевод на сотрудника"),
+                done=True, status="transferred"))
 
         if hit.kind == "complaint":
-            self.scenario = create_scenario(
-                _frame_with_intent(None, Intent.COMPLAINT))
-            self.state = "active"
-            return self._finish_turn(self.scenario.start(self.ctx))
+            self.ctx.collect("недовольство", "да")
+            return self._finish_turn(StepResult(
+                label="complaint",
+                reply=ph.COMPLAINT_TRANSFER + " " + ph.HANDOVER,
+                actions=self._transfer_actions(
+                    Target.SENIOR, 2, "Жалоба: " + self.ctx.last_user[:120],
+                    "жалоба"),
+                done=True, status=COMPLAINT))
 
         if hit.kind == "gratitude":
             return self._finish_turn(StepResult(
-                reply=ph.GRATITUDE, done=True,
-                result_code=ResultCode.GRATITUDE))
+                label="safety", reply=ph.GRATITUDE, done=True, status="info"))
 
         if hit.kind == "complaint_written":
             return self._finish_turn(StepResult(
-                reply=ph.COMPLAINT_WRITTEN, done=True,
-                result_code=ResultCode.COMPLAINT))
+                label="complaint", reply=ph.COMPLAINT_WRITTEN, done=True,
+                status=COMPLAINT))
 
         if hit.kind == "robot":
             return self._turn(DmTurn(reply=ph.ROBOT_ANSWER,
@@ -196,66 +267,49 @@ class DialogManager:
             self.ctx.recording_consent = False
             tail = (" " + self.ctx.last_assistant) if self.scenario \
                 else " " + ph.ANYTHING_ELSE
-            return self._turn(DmTurn(
-                reply=ph.RECORDING_OFF + tail))
+            return self._turn(DmTurn(reply=ph.RECORDING_OFF + tail))
 
         if hit.kind == "tooth":
             return self._finish_turn(StepResult(
-                reply=ph.R09_TRANSFER + " " + ph.HANDOVER,
+                label="safety",
+                reply=ph.TRANSFER_DENTISTRY + " " + ph.HANDOVER,
                 actions=self._transfer_actions(
-                    Target.DENTISTRY, RouteRule.R09, Priority.P2,
-                    "Острая зубная боль: " + hit.phrase_group),
-                done=True, result_code=ResultCode.ESCALATED))
+                    Target.DENTISTRY, 2,
+                    "Острая зубная боль: " + hit.phrase, "острая зубная боль"),
+                done=True, status="transferred"))
 
         if hit.kind == "medical_values":
             reply = ph.LAB_VALUES_REFUSAL
             if self.scenario is not None:
                 return self._turn(DmTurn(reply=reply,
                                          expecting="продолжение сценария"))
-            self.scenario = MedicalBoundaryScenario()
+            self.scenario = MedicalFlow(reply)
             self.state = "active"
             return self._finish_turn(self.scenario.start(self.ctx))
 
         if hit.kind == "medical":
             if self.scenario is not None:
                 # граничная фраза внутри сценария: отвечаем и продолжаем
-                return self._turn(DmTurn(
-                    reply=ph.MEDICAL_BOUNDARY,
-                    expecting="продолжение сценария"))
-            self.scenario = MedicalBoundaryScenario()
+                return self._turn(DmTurn(reply=ph.MEDICAL_BOUNDARY,
+                                         expecting="продолжение сценария"))
+            self.scenario = MedicalFlow()
             self.state = "active"
             return self._finish_turn(self.scenario.start(self.ctx))
-
-        if hit.kind == "organization":
-            return self._finish_turn(StepResult(
-                reply=ph.R14_TRANSFER + " " + ph.HANDOVER,
-                actions=self._transfer_actions(
-                    Target.SENIOR, RouteRule.R14, Priority.P3,
-                    "Звонок от организации"),
-                done=True, result_code=ResultCode.ESCALATED))
         return None
 
-    def _transfer_actions(self, target: Target, rule: RouteRule,
-                          priority: Priority, summary: str) -> list[DmAction]:
-        card = self.ctx.build_card(rule, priority, summary)
+    def _transfer_actions(self, target: Target, priority: int, summary: str,
+                          topic: str) -> list[DmAction]:
+        card = self.ctx.card(summary, topic)
         if target_available(target.value, self.ctx.now):
-            return [Transfer(target=target, rule=rule, priority=priority,
-                             card=card)]
-        # вне часов работы адресата — обратный звонок (7.6)
-        within = 15 if priority == Priority.P2 else 30
+            return [Transfer(target=target, priority=priority, card=card)]
+        # вне часов работы адресата — обратный звонок
+        within = 15 if priority == 2 else 30
         return [CallbackTask(card=card, within_minutes=within)]
 
     # ------------------------------------------------------------------
-    # Сценарии
+    # Прогон сценария
 
-    def _start_scenario(self, frame, force_faq: bool = False) -> DmTurn:
-        if force_faq:
-            from .scenarios.info import FaqScenario
-            scenario = FaqScenario(frame=frame)
-        else:
-            scenario = create_scenario(frame)
-        if scenario is None:
-            return self._ladder()
+    def _start_scenario(self, scenario: Scenario) -> DmTurn:
         self.scenario = scenario
         self.state = "active"
         return self._finish_turn(scenario.start(self.ctx))
@@ -269,27 +323,30 @@ class DialogManager:
             self.ctx.mis_errors += 1
             if self.ctx.mis_errors >= 2:
                 return StepResult(
+                    label=scenario.label,
                     reply=ph.MIS_DOWN_TRANSFER + " " + ph.HANDOVER,
                     actions=self._transfer_actions(
-                        Target.REGISTRAR, RouteRule.R06, Priority.P3,
-                        "МИС не отвечает дважды"),
-                    done=True, result_code=ResultCode.ESCALATED)
+                        Target.OPERATOR, 3, "МИС не отвечает дважды",
+                        "сбой МИС"),
+                    done=True, status="transferred")
             return StepResult(
+                label=scenario.label,
                 reply=ph.MIS_WAIT + " " + ph.MIS_DOWN_RETRY + " " +
                 self.ctx.last_assistant, mis_retry=True)
 
     def _finish_turn(self, res: StepResult) -> DmTurn:
-        # цепочка передач другому сценарию (С-01→С-02, С-01→С-03, С-12→С-01…)
+        # цепочка передач другому сценарию (справка → запись и т.п.)
         hops = 0
         while res.handoff is not None and hops < 4:
             nxt = res.handoff
             self.scenario = nxt
             start_res = self._run_start(nxt)
             res = StepResult(
+                label=nxt.label,
                 reply=" ".join(x for x in (res.reply, start_res.reply) if x),
                 actions=res.actions + start_res.actions,
                 done=start_res.done,
-                result_code=start_res.result_code or res.result_code,
+                status=start_res.status or res.status,
                 progress=start_res.progress)
             hops += 1
 
@@ -297,11 +354,11 @@ class DialogManager:
             self.scenario = self.suspended
             self.suspended = None
             res.done = False
-            res.result_code = None
+            res.status = None
             self.state = "active"
         elif res.done:
-            if res.result_code is not None:
-                self.result_code = res.result_code
+            if res.status is not None:
+                self.status = res.status
             # перевод звонка или завершение — ГА больше не ведёт диалог
             ended = any(isinstance(a, (EndCall, Transfer, CallbackTask))
                         for a in res.actions)
@@ -315,7 +372,8 @@ class DialogManager:
         if res.mis_retry:
             return self._turn(DmTurn(
                 reply=res.reply,
-                scenario=self.scenario.id if self.scenario else None,
+                scenario=res.label or (self.scenario.label
+                                       if self.scenario else ""),
                 expecting="повтор реплики после сбоя МИС"))
 
         if not res.progress:
@@ -325,21 +383,35 @@ class DialogManager:
         return self._turn(DmTurn(
             reply=res.reply,
             actions=res.actions,
-            scenario=self.scenario.id if self.scenario else None,
-            result_code=self.result_code,
+            scenario=res.label or (self.scenario.label
+                                   if self.scenario else ""),
+            status=self.status,
             expecting=res.expecting))
 
     def _chain_next(self, res: StepResult, frame) -> StepResult:
-        scenario = create_scenario(frame)
+        scenario = _scenario_for(frame)
+        if scenario is None and frame.intent in SIMPLE_TRANSFERS:
+            target, topic = SIMPLE_TRANSFERS[frame.intent]
+            return StepResult(
+                label="transfer",
+                reply=" ".join(x for x in (
+                    res.reply,
+                    ph.TRANSFER_ACK.get(frame.intent.value,
+                                        ph.TRANSFER_OPERATOR) + " "
+                    + ph.HANDOVER) if x),
+                actions=res.actions + self._transfer_actions(
+                    target, 3, topic + "; " + frame.raw[:100], topic),
+                done=True, status="transferred")
         if scenario is None:
             return res
         self.scenario = scenario
         self.state = "active"
         start_res = self._run_start(scenario)
         return StepResult(
+            label=scenario.label,
             reply=" ".join(x for x in (res.reply, start_res.reply) if x),
             actions=res.actions + start_res.actions,
-            done=start_res.done, result_code=start_res.result_code,
+            done=start_res.done, status=start_res.status,
             progress=start_res.progress)
 
     def _run_start(self, scenario: Scenario) -> StepResult:
@@ -351,45 +423,47 @@ class DialogManager:
             self.ctx.mis_errors += 1
             if self.ctx.mis_errors >= 2:
                 return StepResult(
+                    label=scenario.label,
                     reply=ph.MIS_DOWN_TRANSFER + " " + ph.HANDOVER,
                     actions=self._transfer_actions(
-                        Target.REGISTRAR, RouteRule.R06, Priority.P3,
-                        "МИС не отвечает дважды"),
-                    done=True, result_code=ResultCode.ESCALATED)
-            return StepResult(reply=ph.MIS_DOWN_RETRY, mis_retry=True)
+                        Target.OPERATOR, 3, "МИС не отвечает дважды",
+                        "сбой МИС"),
+                    done=True, status="transferred")
+            return StepResult(label=scenario.label,
+                              reply=ph.MIS_DOWN_RETRY, mis_retry=True)
 
     # ------------------------------------------------------------------
     # Общие ходы
 
     def _ladder(self) -> DmTurn:
-        """Лестница непонимания: переспрос → оператор → автоперевод (R-05)."""
+        """Лестница непонимания: переспрос → оператор → автоперевод."""
         self.misses += 1
         if self.misses >= 3:
             self.state = "closed"
-            self.result_code = ResultCode.ESCALATED
+            self.status = "transferred"
             return self._turn(DmTurn(
                 reply=ph.LADDER_TRANSFER + " " + ph.HANDOVER,
                 actions=self._transfer_actions(
-                    Target.REGISTRAR, RouteRule.R05, Priority.P3,
-                    "ГА не понимает пациента (3 раза подряд)"),
-                result_code=ResultCode.ESCALATED))
+                    Target.OPERATOR, 3, "ГА не понимает пациента "
+                    "(3 раза подряд)", "непонимание"),
+                status="transferred"))
         reply = ph.LADDER_OFFER if self.misses == 2 else ph.LADDER_REPHRASE
         return self._turn(DmTurn(reply=reply,
-                                 scenario=self.scenario.id
-                                 if self.scenario else None,
+                                 scenario=self.scenario.label
+                                 if self.scenario else "",
                                  expecting="повтор реплики"))
 
     def _farewell(self) -> DmTurn:
         self.state = "closed"
         return self._turn(DmTurn(
             reply=ph.FAREWELL, actions=[EndCall(reason="завершение")],
-            result_code=self.result_code))
+            status=self.status))
 
     def _turn(self, turn: DmTurn) -> DmTurn:
         # побочные эффекты на Заглушке МИС (в проде — исполнитель действий)
         for a in turn.actions:
             if isinstance(a, NotifySenior) and hasattr(self.ctx.mis,
-                                                      "notify_senior"):
+                                                       "notify_senior"):
                 self.ctx.mis.notify_senior(a.text)
             elif isinstance(a, SmsRequest) and hasattr(self.ctx.mis,
                                                        "send_sms"):
@@ -398,11 +472,3 @@ class DialogManager:
             self.ctx.last_assistant = turn.reply
             self.ctx.log("ga", turn.reply)
         return turn
-
-
-def _frame_with_intent(frame, intent: Intent):
-    """Копия фрейма с другим интентом (для очереди нескольких интентов)."""
-    from dataclasses import replace
-    if frame is None:
-        return Frame(intent=intent)
-    return replace(frame, intent=intent, extra_intents=())

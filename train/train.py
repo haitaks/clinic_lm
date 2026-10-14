@@ -193,6 +193,7 @@ def main():
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--smoke-steps", type=int, default=300)
     ap.add_argument("--save", default="models/model.pt")
+    ap.add_argument("--tokenizer", default="models/tokenizer.json")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
@@ -201,7 +202,7 @@ def main():
         import torch_directml
         device = torch_directml.device()
 
-    tok = Tokenizer.from_file(str(ROOT / "models" / "tokenizer.json"))
+    tok = Tokenizer.from_file(str(ROOT / args.tokenizer))
     ids = {t: tok.token_to_id(t) for t in (PAD, UNK, BOS, EOS, USER, ASSISTANT)}
     ids["G"] = tok.token_to_id("Ġ")
     assert all(v is not None for v in ids.values()), ids
@@ -256,6 +257,11 @@ def main():
                               pad=ids[PAD])[0] for t in probe_texts]
         n_match = sum(a == b for a, b in zip(got, ref_frames))
         print(f"tied-версия {vi}: совпало фреймов {n_match}/{len(probe_texts)}")
+        for t, a, b in zip(probe_texts, got, ref_frames):
+            if a != b:
+                print(f"    расходится: {t!r}")
+                print(f"      dml: {b}")
+                print(f"      cpu: {a}")
         scored.append((n_match, cand))
     scored.sort(key=lambda x: -x[0])
     n_match, chosen = scored[0]
