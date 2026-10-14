@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Консольная демка менеджера диалога: RuleNlu + StubMis.
+"""Консольная демка менеджера диалога.
 
 Запуск из корня clinic_lm::
 
-    python -m telephone.demo
+    python -m telephone.demo                        # frame-модель + Natasha + e5
+    .venv-tr/Scripts/python -m telephone.demo       # то же, но e5-резолвер живой
+    python -m telephone.demo --nlu fixture          # словарная заглушка
     python -m telephone.demo --outbound Смирнова
 
 Команды: /silence — событие тишины, /dtmf 1234… — набор цифр,
@@ -38,12 +40,20 @@ def main() -> None:
                         help="исходящий звонок-напоминание (С-10)")
     parser.add_argument("--ani", default="+79001234567",
                         help="ANI звонящего")
+    parser.add_argument("--nlu", choices=["frame", "fixture"],
+                        default="frame",
+                        help="NLU-контур: frame-модель (по умолчанию) или "
+                             "словарная заглушка")
     args = parser.parse_args()
 
     mis = StubMis()
     now = datetime(2026, 9, 30, 12, 0)
     outbound = _outbound(args.outbound, mis) if args.outbound else None
-    nlu = FixtureNlu([p.fio for p in mis.patients.values()])
+    if args.nlu == "frame":
+        from .nlu import FrameModelNlu
+        nlu = FrameModelNlu()          # + names_backstop (Natasha) внутри
+    else:
+        nlu = FixtureNlu([p.fio for p in mis.patients.values()])
     dm = DialogManager(nlu=nlu, mis=mis, now=now, ani=args.ani,
                        outbound=outbound)
 

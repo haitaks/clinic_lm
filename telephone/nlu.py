@@ -252,11 +252,36 @@ class NatashaNames:
         return best[1] if best else None
 
 
+_NAMES_SINGLETON: "NatashaNames | None" = None
+
+
+def names_backstop(text: str) -> Fio | None:
+    """Контур модели имён (README «Подключение реальной модели», п. 4):
+    Natasha дозаполняет Frame.fio, когда основная NLU оставила его пустым.
+    Ленивая загрузка, кэш на уровне модуля; TEL_NAMES=off — выключить."""
+    global _NAMES_SINGLETON
+    if os.environ.get("TEL_NAMES", "natasha") == "off":
+        return None
+    if _NAMES_SINGLETON is None:
+        _NAMES_SINGLETON = NatashaNames()
+    return _NAMES_SINGLETON.extract(text)
+
+
+def _apply_names_backstop(frame: Frame, text: str) -> Frame:
+    """frame.fio пуст → достать ФИО контуром имён (на месте)."""
+    if frame.fio is None:
+        fio = names_backstop(text)
+        if fio is not None:
+            frame.fio = fio
+            frame.unknown = False
+    return frame
+
+
 class FixtureNlu(RuleNlu):
     """Заглушка «другой модели» извлечения ФИО для демо: ФИО
     подставляется сопоставлением с известным списком пациентов Заглушки
     МИС. Остальные слоты — как у RuleNlu. В прод-контуре ФИО извлекает
-    Natasha (NatashaNames) или основная модель."""
+    Natasha (names_backstop) или основная модель."""
 
     def __init__(self, known: list[Fio]):
         self.known = [
@@ -385,7 +410,8 @@ class FrameModelNlu:
             bos=ids["<BOS>"], user=ids["<USER>"],
             assistant=ids["<ASSISTANT>"], eos=ids["<EOS>"],
             pad=ids["<PAD>"])
-        return frame_from_tokens(semantic, text, today, options)
+        frame = frame_from_tokens(semantic, text, today, options)
+        return _apply_names_backstop(frame, text)
 
 
 def frame_from_tokens(semantic: list[str], text: str, today: date,
@@ -499,7 +525,8 @@ class TaggerNlu:
         shared = TaggerNlu._shared
         frame_str = shared["fn"](shared["model"], shared["tok"],
                                  text, device="cpu")
-        return frame_from_tokens(frame_str.split(), text, today, options)
+        frame = frame_from_tokens(frame_str.split(), text, today, options)
+        return _apply_names_backstop(frame, text)
 
 
 # ---------------------------------------------------------------------------
@@ -659,7 +686,8 @@ class LlmNlu:
             payload.pop("response_format")
             data = self._post(payload)
         content = data["choices"][0]["message"]["content"]
-        return frame_from_json(_extract_json(content), text, today, options)
+        frame = frame_from_json(_extract_json(content), text, today, options)
+        return _apply_names_backstop(frame, text)
 
     def _post(self, payload: dict) -> dict | None:
         """POST /chat/completions; None — эндпоинт отверг запрос с
