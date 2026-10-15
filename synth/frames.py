@@ -212,9 +212,11 @@ def _sample_schedule(rng) -> Frame:
 
 def _sample_bare(rng, intent: str) -> Frame:
     # вариант в ключе фрейма обходит CAP_PER_FRAME для интентов с одним
-    # логическим фреймом («врач на дом»): разнообразие дают поверхности
+    # логическим фреймом («врач на дом»): разнообразие дают поверхности.
+    # 24 варианта x кап 60 = до 1440 текстов на интент: train больше не
+    # выбирает пул целиком, оставляя val/iid без представительства
     return Frame(intent, "unknown", (), False, None,
-                 aux={"variant": rng.randrange(6)})
+                 aux={"variant": rng.randrange(24)})
 
 
 def _sample_medical(rng) -> Frame:

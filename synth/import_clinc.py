@@ -40,6 +40,19 @@ from import_hasd import build_translator, translate_batch, apply_glossary
 PER_INTENT = 12          # максимум фраз на интент до фильтров
 TRAIN_AUG_QUOTA = 1200   # сколько отдать в train-аугментацию
 
+# интенты, ставшие позитивными классами каталога телефонии (после
+# расширения словаря из открытых источников): держать их негативами —
+# семантический конфликт (например, «yes» размечался UNSUPPORTED)
+EXCLUDE_INTENTS = {
+    "calendar", "calendar_update", "confirm_reservation",
+    "cancel", "cancel_reservation",
+    "order_status", "application_status",
+    "bill_balance", "bill_due", "min_payment", "pay_bill",
+    "report_fraud", "report_lost_card",
+    "international_visa", "vaccines",
+    "yes", "no", "maybe",
+}
+
 
 def load_clinc():
     parts = []
@@ -78,10 +91,13 @@ def main():
         by_intent.setdefault(r["intent"], []).append(r)
     sample = []
     for intent, items in sorted(by_intent.items()):
+        if intent in EXCLUDE_INTENTS:
+            continue
         rng.shuffle(items)
         sample += items[:PER_INTENT]
     print(f"стратифицированная подвыборка: {len(sample)} фраз "
-          f"({PER_INTENT} на интент x {len(by_intent)})")
+          f"({PER_INTENT} на интент x {len(by_intent) - len(EXCLUDE_INTENTS)}, "
+          f"исключено {len(EXCLUDE_INTENTS)} теперь-позитивных интентов)")
 
     cache_path = out / "clinc_translations.json"
     cache = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}

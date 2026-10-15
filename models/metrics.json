@@ -1,35 +1,35 @@
 {
   "n": 1000,
-  "exact": 0.963,
-  "intent": 1.0,
-  "specialty": 0.997,
-  "time": 1.0,
-  "symptoms_f1": 0.9953333333333334,
+  "exact": 0.992,
+  "intent": 0.998,
+  "specialty": 0.998,
+  "time": 0.998,
+  "symptoms_f1": 0.998,
   "samples": [
     {
-      "text": "психотерапевт тревога",
-      "gold": "<BOOK> <PSYCHOLOGIST> <T_UNKNOWN> <SYMPTOM_ANXIETY> <END_FRAME>",
-      "pred": "<BOOK> <ENT> <T_UNKNOWN> <SYMPTOM_ANXIETY> <END_FRAME>"
+      "text": "рабочий день у вас какой?",
+      "gold": "<SCHEDULE> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>",
+      "pred": "<UNSUPPORTED> <END_FRAME>"
     },
     {
-      "text": "здравствуйте! хочу на приём к врачу хирургу, если можно. Поясницу прихватило. Болит живот.",
-      "gold": "<BOOK> <SURGEON> <T_UNKNOWN> <SYMPTOM_BACK_PAIN> <SYMPTOM_STOMACH_PAIN> <END_FRAME>",
-      "pred": "<BOOK> <SURGEON> <T_UNKNOWN> <SYMPTOM_STOMACH_PAIN> <SYMPTOM_BACK_PAIN> <END_FRAME>"
+      "text": "участковый в 13:15 болит живот спина болит плечо не поднимается",
+      "gold": "<BOOK> <GP> <TIME> T_H13_15 </TIME> <SYMPTOM_STOMACH_PAIN> <SYMPTOM_BACK_PAIN> <END_FRAME>",
+      "pred": "<BOOK> <GP> <TIME> T_H13_15 </TIME> <SYMPTOM_BACK_PAIN> <SYMPTOM_STOMACH_PAIN> <END_FRAME>"
     },
     {
-      "text": "не отменяй наоборот хочу к хирургу болит спина живот крутит",
-      "gold": "<BOOK> <SURGEON> <T_UNKNOWN> <SYMPTOM_BACK_PAIN> <SYMPTOM_STOMACH_PAIN> <END_FRAME>",
-      "pred": "<BOOK> <SURGEON> <T_UNKNOWN> <SYMPTOM_STOMACH_PAIN> <SYMPTOM_BACK_PAIN> <END_FRAME>"
+      "text": "слушай, запись надо переделать на другое время к психологу, в воскресенье в 13:00 или в 13:30? тревога.",
+      "gold": "<RESCHEDULE> <PSYCHOLOGIST> <TIME> T_SUN T_AMBIG </TIME> <SYMPTOM_ANXIETY> <END_FRAME>",
+      "pred": "<RESCHEDULE> <PSYCHOLOGIST> <TIME> T_SUN T_AMBIG </TIME> <END_FRAME>"
     },
     {
-      "text": "привет хотел бы попасть на приём к врачу хирургу в следующую пятницу вечером если получится болит поясница живот крутит",
-      "gold": "<BOOK> <SURGEON> <TIME> T_NEXT_WEEK T_FRI T_EVENING </TIME> <SYMPTOM_BACK_PAIN> <SYMPTOM_STOMACH_PAIN> <END_FRAME>",
-      "pred": "<BOOK> <SURGEON> <TIME> T_NEXT_WEEK T_FRI T_EVENING </TIME> <SYMPTOM_STOMACH_PAIN> <SYMPTOM_BACK_PAIN> <END_FRAME>"
+      "text": "глазной врач. голова раскалывается.",
+      "gold": "<BOOK> <OPHTHALMOLOGIST> <T_UNKNOWN> <SYMPTOM_HEADACHE> <END_FRAME>",
+      "pred": "<BOOK> <DENTIST> <T_UNKNOWN> <SYMPTOM_HEADACHE> <END_FRAME>"
     },
     {
-      "text": "добавь в мой календарь приём у психотерапевта через неделю панические атаки",
-      "gold": "<BOOK> <PSYCHOLOGIST> <TIME> T_IN_WEEK </TIME> <SYMPTOM_ANXIETY> <END_FRAME>",
-      "pred": "<BOOK> <PSYCHOLOGIST> <TIME> T_IN_WEEK </TIME> <SYMPTOM_ANXIETY> <SYMPTOM_INSOMNIA> <END_FRAME>"
+      "text": "проверь, есть ли место у врача по коже в 13:00? Высыпания. Аллергия. Ногу свело.",
+      "gold": "<BOOK> <DERMATOLOGIST> <TIME> T_H13_00 </TIME> <SYMPTOM_RASH> <SYMPTOM_ALLERGY> <END_FRAME>",
+      "pred": "<BOOK> <DERMATOLOGIST> <TIME> T_H13_00 </TIME> <SYMPTOM_ALLERGY> <SYMPTOM_RASH> <END_FRAME>"
     }
   ]
 }
