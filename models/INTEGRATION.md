@@ -1,5 +1,13 @@
 # Интеграция обученной модели: бэкенд и Android
 
+> Актуальный гайд по прод-развёртыванию бэкенда — **`train/DEPLOY.md`**
+> (основная модель = `train/` + `tokenizer_v2.json`). Ниже — краткая
+> сводка; примеры приведены к текущим артефактам.
+>
+> ВАЖНО: `model.onnx`/`*.tflite` в этом каталоге устарели относительно
+> текущего `model.pt` — перед использованием перегенерируйте
+> (`train/export_onnx.py`, затем `train/export_tflite.py`).
+
 Всё для интеграции уже подготовлено: модель экспортирована в ONNX и TFLite
 с проверкой парности (`train/export_onnx.py`, `train/export_tflite.py`),
 для Android написана инструкция (`models/ANDROID_INTEGRATION.md`). Ниже —
@@ -7,11 +15,11 @@
 
 | Файл | Размер | Назначение |
 | :-- | :-- | :-- |
-| `model.pt` | 24 МБ | чекпойнт torch (для бэкенда) |
-| `model.onnx` | 24 МБ | ONNX-экспорт, вход `int64[1,128]`, выход `float32[1,128,V]` |
+| `model.pt` | 24 МБ | чекпойнт torch — основной вариант для бэкенда |
+| `model.onnx` | 24 МБ | ONNX-экспорт, вход `int64[1,128]`, выход `float32[1,128,V]` (перегенерировать) |
 | `model.tflite` | 24 МБ | TFLite fp32 — основной вариант для Android (офлайн) |
 | `model_int8.tflite` | 7 МБ | TFLite weight-int8 — то же, компактнее для APK |
-| `tokenizer.json` | 0.3 МБ | ByteLevel BPE + спецтокены (формат HF tokenizers) |
+| `tokenizer_v2.json` | 0.3 МБ | токенизатор ОСНОВНОЙ модели (HF tokenizers); `tokenizer.json` — теггера, для неё старые id! |
 | `failures_report.md` | — | кейсы, которые модель НЕ обрабатывает (читать до демо) |
 
 ## Бэкенд — самый простой вариант: FastAPI + готовый `generate_frame`
@@ -30,7 +38,7 @@ from model import TinyGPT                      # train/
 from constrained import generate_frame         # train/
 
 app = FastAPI()
-tok = Tokenizer.from_file("models/tokenizer.json")
+tok = Tokenizer.from_file("models/tokenizer_v2.json")   # НЕ tokenizer.json (теггер)!
 ckpt = torch.load("models/model.pt", map_location="cpu")
 model = TinyGPT(tok.get_vocab_size(), **ckpt["config"]); model.load_state_dict(ckpt["model"]); model.eval()
 ids = {t: tok.token_to_id(t) for t in ("<BOS>","<EOS>","<USER>","<ASSISTANT>","<PAD>")}
@@ -95,8 +103,8 @@ Java-обёртка ONNX Runtime конфликтует с нативной сб
 
 - `failures_report.md` — список кейсов, которые модель проваливает
   (невидимые синонимы специальностей, академический стиль HASD, часть живой
-  речи). Метрики на тесте идеальные (`exact=1.0`, n=867 в `metrics.json`),
-  но тест ≠ реальная речь.
+  речи). Метрики на тестах высокие (val/iid exact 0.992, актуальные цифры —
+  в `metrics.json` и корневом README), но тест ≠ реальная речь.
 - Списки токенов автомата (специальности/симптомы/время) имеют единственный
   источник истины — `synth/vocab.py`. При порте на Kotlin и при любых
   правках словаря синхронизируйтесь с ним, иначе автомат молча зарежет
