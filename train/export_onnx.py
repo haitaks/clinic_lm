@@ -39,7 +39,7 @@ class ExportWrapper(torch.nn.Module):
 
 
 def main():
-    tok = Tokenizer.from_file(str(ROOT / "models" / "tokenizer.json"))
+    tok = Tokenizer.from_file(str(ROOT / "models" / "tokenizer_v2.json"))
     ckpt = torch.load(ROOT / "models" / "model.pt", map_location="cpu")
     model = TinyGPT(tok.get_vocab_size(), **ckpt["config"])
     model.load_state_dict(ckpt["model"])
