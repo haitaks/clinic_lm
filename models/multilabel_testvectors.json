@@ -1,0 +1,78 @@
+[
+ {
+  "text": "запишите меня к стоматологу завтра утром",
+  "expect_intent": "<BOOK>",
+  "expect_tags": [
+   "<BOOK>",
+   "<UNKNOWN_SPECIALTY>"
+  ]
+ },
+ {
+  "text": "не могу прийти в четверг, перенесите",
+  "expect_intent": "<RESCHEDULE>",
+  "expect_tags": [
+   "<RESCHEDULE>"
+  ]
+ },
+ {
+  "text": "хочу к глазнику попасть на послезавтра",
+  "expect_intent": "<BOOK>",
+  "expect_tags": [
+   "<BOOK>",
+   "<UNKNOWN_SPECIALTY>"
+  ]
+ },
+ {
+  "text": "вызовите врача на дом маме",
+  "expect_intent": "<HOME_VISIT>",
+  "expect_tags": [
+   "<HOME_VISIT>",
+   "<UNKNOWN_SPECIALTY>"
+  ]
+ },
+ {
+  "text": "сколько стоит приём кардиолога",
+  "expect_intent": "<PAID>",
+  "expect_tags": [
+   "<PAID>",
+   "<CARDIOLOGIST>"
+  ]
+ },
+ {
+  "text": "готовы ли анализы",
+  "expect_intent": "<LAB_STATUS>",
+  "expect_tags": [
+   "<LAB_STATUS>",
+   "<UNKNOWN_SPECIALTY>"
+  ]
+ },
+ {
+  "text": "который час",
+  "expect_intent": "<UNSUPPORTED>",
+  "expect_tags": [
+   "<UNSUPPORTED>",
+   "<UNKNOWN_SPECIALTY>"
+  ]
+ },
+ {
+  "text": "да",
+  "expect_intent": "<YES>",
+  "expect_tags": [
+   "<YES>",
+   "<UNKNOWN_SPECIALTY>"
+  ]
+ },
+ {
+  "text": "здравствуйте, можно к дантисту на этой неделе?",
+  "expect_intent": "<BOOK>",
+  "expect_tags": []
+ },
+ {
+  "text": "какие документы нужны для прикрепления",
+  "expect_intent": "<DOCS>",
+  "expect_tags": [
+   "<DOCS>",
+   "<UNKNOWN_SPECIALTY>"
+  ]
+ }
+]

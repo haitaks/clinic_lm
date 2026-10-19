@@ -50,6 +50,11 @@ def corpus_texts():
         for row in map(json.loads, clinc.read_text(encoding="utf-8").splitlines()):
             if row["split"] == "train_aug":
                 lines.append(row["text"])
+    hasd = ROOT / "data" / "hasd_unsupported_ru.jsonl"
+    if hasd.exists():
+        for row in map(json.loads, hasd.read_text(encoding="utf-8").splitlines()):
+            if row["split"] == "train_aug":
+                lines.append(row["text"])
     return lines
 
 

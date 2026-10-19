@@ -1,0 +1,122 @@
+мультилейбл-классификатор, ветка-победитель: (г) lemma+dict+char
+train=31499 (с негативами CLINC+HASD)
+
+=== (а) word  (обучение 4s) ===
+  val        n=1000 exact=0.811 intent=0.932 spec=0.954 time=0.932 symp=0.933
+  iid        n=1000 exact=0.827 intent=0.937 spec=0.973 time=0.939 symp=0.929
+  ood        n= 200 exact=0.010 intent=1.000 spec=0.035 time=0.995 symp=0.133
+  manual     n=  25 exact=0.400 intent=0.720 spec=0.542 time=0.833 symp=0.750
+  hasd       n= 250 exact=0.192 intent=0.208 spec=0.288 time=1.000 symp=0.000
+  hasd_unsup n= 299 exact=0.930 intent=0.930 spec=0.000 time=0.000 symp=0.000
+  clinc      n= 370 exact=0.981 intent=0.981 spec=0.000 time=0.000 symp=0.000
+  приёмка: 37/40  промахи: ['[C-01] «здравствуйте, хочу записаться к окулисту» -> <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <OPHTHALMOLOGIST>', '[C-01] «запишите меня к глазному на завтра утром» -> <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_TOMORROW T_MORNING </TIME> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <OPHTHALMOLOGIST>', '[C-01] «можно к дантисту на этой неделе?» -> <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_THIS_WEEK </TIME> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <DENTIST>']
+
+=== (б) lemma  (обучение 13s) ===
+  val        n=1000 exact=0.801 intent=0.929 spec=0.952 time=0.932 symp=0.898
+  iid        n=1000 exact=0.816 intent=0.934 spec=0.969 time=0.939 symp=0.915
+  ood        n= 200 exact=0.035 intent=1.000 spec=0.065 time=0.995 symp=0.297
+  manual     n=  25 exact=0.400 intent=0.800 spec=0.542 time=0.833 symp=0.750
+  hasd       n= 250 exact=0.320 intent=0.324 spec=0.416 time=1.000 symp=0.000
+  hasd_unsup n= 299 exact=0.913 intent=0.913 spec=0.000 time=0.000 symp=0.000
+  clinc      n= 370 exact=0.970 intent=0.970 spec=0.000 time=0.000 symp=0.000
+  приёмка: 37/40  промахи: ['[C-01] «здравствуйте, хочу записаться к окулисту» -> <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <OPHTHALMOLOGIST>', '[C-01] «можно к дантисту на этой неделе?» -> <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_THIS_WEEK </TIME> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <DENTIST>', '[C-12] «ребёнка записать к кожнику» -> <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <DERMATOLOGIST>']
+
+=== (в) lemma+dict  (обучение 13s) ===
+  val        n=1000 exact=0.801 intent=0.929 spec=0.952 time=0.932 symp=0.898
+  iid        n=1000 exact=0.816 intent=0.934 spec=0.969 time=0.939 symp=0.915
+  ood        n= 200 exact=0.110 intent=1.000 spec=0.205 time=0.995 symp=0.312
+  manual     n=  25 exact=0.400 intent=0.800 spec=0.542 time=0.833 symp=0.750
+  hasd       n= 250 exact=0.316 intent=0.340 spec=0.424 time=1.000 symp=0.000
+  hasd_unsup n= 299 exact=0.913 intent=0.913 spec=0.000 time=0.000 symp=0.000
+  clinc      n= 370 exact=0.970 intent=0.970 spec=0.000 time=0.000 symp=0.000
+  приёмка: 37/40  промахи: ['[C-01] «здравствуйте, хочу записаться к окулисту» -> <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <OPHTHALMOLOGIST>', '[C-01] «можно к дантисту на этой неделе?» -> <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_THIS_WEEK </TIME> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <DENTIST>', '[C-12] «ребёнка записать к кожнику» -> <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <DERMATOLOGIST>']
+
+=== (г) lemma+dict+char  (обучение 35s) ===
+  val        n=1000 exact=0.861 intent=0.952 spec=0.977 time=0.932 symp=0.981
+  iid        n=1000 exact=0.870 intent=0.957 spec=0.989 time=0.939 symp=0.972
+  ood        n= 200 exact=0.130 intent=1.000 spec=0.260 time=0.995 symp=0.406
+  manual     n=  25 exact=0.520 intent=0.760 spec=0.708 time=0.833 symp=0.750
+  hasd       n= 250 exact=0.224 intent=0.232 spec=0.272 time=1.000 symp=0.000
+  hasd_unsup n= 299 exact=0.970 intent=0.970 spec=0.000 time=0.000 symp=0.000
+  clinc      n= 370 exact=0.995 intent=0.995 spec=0.000 time=0.000 symp=0.000
+  приёмка: 39/40  промахи: ['[C-01] «можно к дантисту на этой неделе?» -> <UNSUPPORTED> <END_FRAME>: интент <UNSUPPORTED> != <BOOK>; спец None != <DENTIST>; уход в UNSUPPORTED']
+
+=== (д) dict (экспорт)  (обучение 4s) ===
+  val        n=1000 exact=0.811 intent=0.932 spec=0.954 time=0.932 symp=0.933
+  iid        n=1000 exact=0.827 intent=0.937 spec=0.973 time=0.939 symp=0.929
+  ood        n= 200 exact=0.065 intent=1.000 spec=0.150 time=0.995 symp=0.258
+  manual     n=  25 exact=0.400 intent=0.720 spec=0.542 time=0.833 symp=0.750
+  hasd       n= 250 exact=0.188 intent=0.212 spec=0.292 time=1.000 symp=0.000
+  hasd_unsup n= 299 exact=0.930 intent=0.930 spec=0.000 time=0.000 symp=0.000
+  clinc      n= 370 exact=0.978 intent=0.978 spec=0.000 time=0.000 symp=0.000
+  приёмка: 37/40  промахи: ['[C-01] «здравствуйте, хочу записаться к окулисту» -> <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <OPHTHALMOLOGIST>', '[C-01] «запишите меня к глазному на завтра утром» -> <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_TOMORROW T_MORNING </TIME> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <OPHTHALMOLOGIST>', '[C-01] «можно к дантисту на этой неделе?» -> <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_THIS_WEEK </TIME> <END_FRAME>: спец <UNKNOWN_SPECIALTY> != <DENTIST>']
+
+=== исковерканные фразы ===
+  «запишитесь пожалуста к стамотологу на завтра»
+    (а) word             <UNSUPPORTED> <END_FRAME>
+    (б) lemma            <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_TOMORROW </TIME> <END_FRAME>
+    (в) lemma+dict       <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_TOMORROW </TIME> <END_FRAME>
+    (г) lemma+dict+char  <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_TOMORROW </TIME> <END_FRAME>
+    (д) dict (экспорт)   <UNSUPPORTED> <END_FRAME>
+  «хочу к глазнику попасть»
+    (а) word             <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (б) lemma            <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (в) lemma+dict       <BOOK> <OPHTHALMOLOGIST> <T_UNKNOWN> <END_FRAME>
+    (г) lemma+dict+char  <BOOK> <OPHTHALMOLOGIST> <T_UNKNOWN> <END_FRAME>
+    (д) dict (экспорт)   <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+  «надо к зубнику срочно»
+    (а) word             <UNSUPPORTED> <END_FRAME>
+    (б) lemma            <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (в) lemma+dict       <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (г) lemma+dict+char  <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (д) dict (экспорт)   <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+  «костоправ нужен на послезавтра»
+    (а) word             <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_DAY_AFTER_TOMORROW </TIME> <END_FRAME>
+    (б) lemma            <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_DAY_AFTER_TOMORROW </TIME> <END_FRAME>
+    (в) lemma+dict       <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_DAY_AFTER_TOMORROW </TIME> <END_FRAME>
+    (г) lemma+dict+char  <BOOK> <ORTHOPEDIST> <TIME> T_DAY_AFTER_TOMORROW </TIME> <END_FRAME>
+    (д) dict (экспорт)   <BOOK> <UNKNOWN_SPECIALTY> <TIME> T_DAY_AFTER_TOMORROW </TIME> <END_FRAME>
+  «перепишите мне приём к лору пожалста»
+    (а) word             <RESCHEDULE> <ENT> <T_UNKNOWN> <END_FRAME>
+    (б) lemma            <RESCHEDULE> <ENT> <T_UNKNOWN> <END_FRAME>
+    (в) lemma+dict       <RESCHEDULE> <ENT> <T_UNKNOWN> <END_FRAME>
+    (г) lemma+dict+char  <RESCHEDULE> <ENT> <T_UNKNOWN> <END_FRAME>
+    (д) dict (экспорт)   <RESCHEDULE> <ENT> <T_UNKNOWN> <END_FRAME>
+  «записана хочу проверить к неврапатологу»
+    (а) word             <UNSUPPORTED> <END_FRAME>
+    (б) lemma            <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (в) lemma+dict       <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (г) lemma+dict+char  <BOOK> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (д) dict (экспорт)   <UNSUPPORTED> <END_FRAME>
+  «отмените мой визит к кардиалогу»
+    (а) word             <CANCEL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (б) lemma            <CANCEL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (в) lemma+dict       <CANCEL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (г) lemma+dict+char  <CANCEL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (д) dict (экспорт)   <CANCEL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+  «вызавите врача на дом маме»
+    (а) word             <HOME_VISIT> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (б) lemma            <HOME_VISIT> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (в) lemma+dict       <HOME_VISIT> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (г) lemma+dict+char  <HOME_VISIT> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+    (д) dict (экспорт)   <HOME_VISIT> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>
+  «талончик к терапевту можно»
+    (а) word             <BOOK> <GP> <T_UNKNOWN> <END_FRAME>
+    (б) lemma            <BOOK> <GP> <T_UNKNOWN> <END_FRAME>
+    (в) lemma+dict       <BOOK> <GP> <T_UNKNOWN> <END_FRAME>
+    (г) lemma+dict+char  <BOOK> <GP> <T_UNKNOWN> <END_FRAME>
+    (д) dict (экспорт)   <BOOK> <GP> <T_UNKNOWN> <END_FRAME>
+  «болит горло чем полоскать дома подскажите»
+    (а) word             <MEDICAL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <SYMPTOM_SORE_THROAT> <END_FRAME>
+    (б) lemma            <MEDICAL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <SYMPTOM_SORE_THROAT> <END_FRAME>
+    (в) lemma+dict       <MEDICAL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <SYMPTOM_SORE_THROAT> <END_FRAME>
+    (г) lemma+dict+char  <MEDICAL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <SYMPTOM_SORE_THROAT> <END_FRAME>
+    (д) dict (экспорт)   <MEDICAL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <SYMPTOM_SORE_THROAT> <END_FRAME>
+
+=== свип порога симптомов (val, микро-F1 симптомов) ===
+  th=0.3: 0.994
+  th=0.4: 0.983
+  th=0.5: 0.966
+  th=0.6: 0.940
+  th=0.7: 0.889
+  лучший порог: 0.3 (F1 0.994)

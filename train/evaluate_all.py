@@ -27,7 +27,7 @@ SETS = [
     ("test_ood", "test_ood.jsonl", 200),
     ("manual_gold", "manual_gold.jsonl", None),
     ("hasd", "hasd_ru.jsonl", 250),
-    ("hasd_unsup", "hasd_unsupported_ru.jsonl", 250),
+    ("hasd_unsup", "hasd_unsupported_ru.jsonl", "ext_test"),
     ("clinc", "clinc_ru.jsonl", "ext_test"),
 ]
 

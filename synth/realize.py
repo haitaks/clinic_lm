@@ -757,6 +757,10 @@ def stt_style(text: str, rng):
 def build_unsupported(rng, aux: dict) -> str:
     pool_name = aux["pool"]
     base = UNSUPPORTED_POOLS[pool_name][aux["variant"] % len(UNSUPPORTED_POOLS[pool_name])]
+    if pool_name == "emergency":
+        # красные флаги — без лидов вовсе: «подскажите, не хочу жить?»
+        # выглядело бы издевательством и портило распределение
+        return _cap(base) + "."
     if pool_name in STATEMENT_POOLS:
         lead = rng.choice(UNSUPPORTED_LEADS_NO_GREET)
         return f"{lead}{base}."

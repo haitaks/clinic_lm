@@ -43,6 +43,11 @@ def load_split(name, with_clinc=False):
             rows += [r for r in clinc if r["split"] == "train_aug"]
         else:
             print(f"  (clinc_ru.jsonl отсутствует — обучаем без CLINC-негативов)")
+        hasd_path = ROOT / "data" / "hasd_unsupported_ru.jsonl"
+        if hasd_path.exists():
+            hasd = [json.loads(l) for l in
+                    hasd_path.read_text(encoding="utf-8").splitlines()]
+            rows += [r for r in hasd if r["split"] == "train_aug"]
     return rows
 
 
@@ -226,15 +231,33 @@ def main():
     # torch-directml: повторные чтения одного тензора могут отдавать разные
     # версии данных (чередование), поэтому tied-параметр (head.weight is
     # tok.weight) в state_dict расходится под двумя ключами, а load_state_dict
-    # оставляет произвольную копию. Снимаем веса, перечитывая tied-параметр
-    # несколько раз, и выбираем ту версию, чьи ВЫХОДЫ совпадают с живой
+    # оставляет произвольную копию. Снимаем веса, ПЕРЕЧИТЫВАЯ state_dict
+    # целиком несколько раз (каждый проход может принести новую версию
+    # tied-параметра), и выбираем ту версию, чьи ВЫХОДЫ совпадают с живой
     # моделью; не совпала ни одна — громкий отказ вместо битого файла.
-    sd = {k: v.detach().to("cpu").clone() for k, v in model.state_dict().items()}
     tied_versions = []
-    for key in ("tok.weight", "head.weight"):
-        ver = sd[key]
-        if not any((ver - v).abs().max().item() == 0.0 for v in tied_versions):
-            tied_versions.append(ver)
+    sd = None
+    for _ in range(5):
+        sd = {k: v.detach().to("cpu").clone()
+              for k, v in model.state_dict().items()}
+        for key in ("tok.weight", "head.weight"):
+            ver = sd[key]
+            if not any((ver - v).abs().max().item() == 0.0
+                       for v in tied_versions):
+                tied_versions.append(ver)
+    # Чтения state_dict могут стабильно отдавать битые версии (два прогона
+    # подряд на корпусе 30k). Forward-путь читает веса корректно — живая
+    # генерация это доказывает, — поэтому tied-вес добираем ТОЧНЫМ
+    # восстановлением через head: head(E) = W^T для единичной матрицы E
+    # (Linear без bias; проверено torch.equal на CPU). Транспонирование
+    # даёт саму матрицу эмбеддингов.
+    model.eval()
+    with torch.no_grad():
+        eye = torch.eye(args.d_model, device=device)
+        ver = model.head(eye).detach().to("cpu").t()
+    if not any((ver - v).abs().max().item() == 0.0
+               for v in tied_versions):
+        tied_versions.append(ver)
 
     # Арифметика CPU и DirectML расходится на единицы в логитах при равных
     # весах, поэтому сверяем не числа, а ПОВЕДЕНИЕ: constrained-генерация

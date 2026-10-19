@@ -1,0 +1,202 @@
+[
+ {
+  "group": "intent",
+  "tag": "<BOOK>"
+ },
+ {
+  "group": "intent",
+  "tag": "<CANCEL>"
+ },
+ {
+  "group": "intent",
+  "tag": "<CHECK_BOOKING>"
+ },
+ {
+  "group": "intent",
+  "tag": "<COMPLAINT>"
+ },
+ {
+  "group": "intent",
+  "tag": "<DOCS>"
+ },
+ {
+  "group": "intent",
+  "tag": "<HOME_VISIT>"
+ },
+ {
+  "group": "intent",
+  "tag": "<LAB_STATUS>"
+ },
+ {
+  "group": "intent",
+  "tag": "<MEDICAL>"
+ },
+ {
+  "group": "intent",
+  "tag": "<NO>"
+ },
+ {
+  "group": "intent",
+  "tag": "<PAID>"
+ },
+ {
+  "group": "intent",
+  "tag": "<RESCHEDULE>"
+ },
+ {
+  "group": "intent",
+  "tag": "<SCHEDULE>"
+ },
+ {
+  "group": "intent",
+  "tag": "<UNSUPPORTED>"
+ },
+ {
+  "group": "intent",
+  "tag": "<WAITLIST>"
+ },
+ {
+  "group": "intent",
+  "tag": "<YES>"
+ },
+ {
+  "group": "spec",
+  "tag": "<CARDIOLOGIST>"
+ },
+ {
+  "group": "spec",
+  "tag": "<DENTIST>"
+ },
+ {
+  "group": "spec",
+  "tag": "<DERMATOLOGIST>"
+ },
+ {
+  "group": "spec",
+  "tag": "<ENDOCRINOLOGIST>"
+ },
+ {
+  "group": "spec",
+  "tag": "<ENT>"
+ },
+ {
+  "group": "spec",
+  "tag": "<GP>"
+ },
+ {
+  "group": "spec",
+  "tag": "<GYNECOLOGIST>"
+ },
+ {
+  "group": "spec",
+  "tag": "<NEUROLOGIST>"
+ },
+ {
+  "group": "spec",
+  "tag": "<OPHTHALMOLOGIST>"
+ },
+ {
+  "group": "spec",
+  "tag": "<ORTHOPEDIST>"
+ },
+ {
+  "group": "spec",
+  "tag": "<PEDIATRICIAN>"
+ },
+ {
+  "group": "spec",
+  "tag": "<PSYCHOLOGIST>"
+ },
+ {
+  "group": "spec",
+  "tag": "<SURGEON>"
+ },
+ {
+  "group": "spec",
+  "tag": "<UROLOGIST>"
+ },
+ {
+  "group": "spec",
+  "tag": "<UNKNOWN_SPECIALTY>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_ALLERGY>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_ANXIETY>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_BACK_PAIN>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_CHEST_PAIN>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_COUGH>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_DIZZINESS>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_EYE_PAIN>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_FEVER>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_HEADACHE>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_INSOMNIA>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_JOINT_PAIN>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_LOSS_OF_CONSCIOUSNESS>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_NAUSEA>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_RASH>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_SHORTNESS_OF_BREATH>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_SORE_THROAT>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_STOMACH_PAIN>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_TOOTHACHE>"
+ },
+ {
+  "group": "sym",
+  "tag": "<SYMPTOM_VOMITING>"
+ },
+ {
+  "group": "clar",
+  "tag": "<NEEDS_CLARIFICATION>"
+ }
+]
