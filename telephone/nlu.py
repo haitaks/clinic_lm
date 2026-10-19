@@ -328,13 +328,21 @@ _TOKEN2INTENT = {
     "<UNSUPPORTED>": Intent.OTHER,
 }
 _TOKEN2ANSWER = {"<YES>": True, "<NO>": False}
-_TOKEN2SPECIALTY = {"<GP>": "gp", "<DENTIST>": "dentist",
+# Этап A ТЗ: кардиолог/уролог/педиатр/эндокринолог/ортопед. Ортопеда
+# таблица 2.3 телефонии не знает (платный контур) — кадр фрейма просто
+# отбросится в словарную страховку, токен модели при этом существует.
+_TOKEN2SPECIALTY = {"<GP>": "gp", "<PEDIATRICIAN>": "pediatrician",
+                    "<DENTIST>": "dentist",
                     "<DERMATOLOGIST>": "dermatologist",
                     "<GYNECOLOGIST>": "gynecologist",
                     "<OPHTHALMOLOGIST>": "ophthalmologist",
                     "<NEUROLOGIST>": "neurologist",
                     "<PSYCHOLOGIST>": "psychologist",
-                    "<SURGEON>": "surgeon", "<ENT>": "ent"}
+                    "<SURGEON>": "surgeon", "<ENT>": "ent",
+                    "<CARDIOLOGIST>": "cardiologist",
+                    "<UROLOGIST>": "urologist",
+                    "<ENDOCRINOLOGIST>": "endocrinologist",
+                    "<ORTHOPEDIST>": "orthopedist"}
 _TIME_FACTORS_DAY = {"T_MON": 0, "T_TUE": 1, "T_WED": 2, "T_THU": 3,
                      "T_FRI": 4, "T_SAT": 5, "T_SUN": 6}
 _TIME_FACTORS_PART = {"T_MORNING": "morning", "T_AFTERNOON": "afternoon",

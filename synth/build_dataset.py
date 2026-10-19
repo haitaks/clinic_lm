@@ -55,6 +55,28 @@ MANUAL_GOLD = [
      "book", "psychologist", None, [], ["anxiety"], False),
     ("во сколько открываетесь",
      "schedule", "unknown", None, [], [], False),
+    # --- доработка NLU по ТЗ (Этапы A/B/C): затравки новых поверхностей ---
+    ("нужен талон к окулисту на завтра",
+     "book", "ophthalmologist", "на завтра", ["T_TOMORROW"], [], False),
+    ("перезапишите меня на пятницу вечером",
+     "reschedule", "unknown", "на пятницу вечером",
+     ["T_FRI", "T_EVENING"], [], False),
+    ("у меня направление к кардиологу, запишите",
+     "book", "cardiologist", None, [], [], False),
+    ("ребёнок заболел, нужен врач на дом",
+     "home_visit", "unknown", None, [], [], False),
+    ("вы в субботу работаете?",
+     "schedule", "unknown", None, [], [], False),
+    ("в каком кабинете принимает невролог?",
+     "schedule", "neurologist", None, [], [], False),
+    ("врач нагрубил, куда жаловаться",
+     "complaint", "unknown", None, [], [], False),
+    ("у мужа давит в груди",
+     "home_visit", "unknown", None, [], ["chest_pain"], False),
+    ("не могу прийти в четверг, перенесите",
+     "reschedule", "unknown", "в четверг", ["T_THU"], [], False),
+    ("запишите сына к детскому врачу",
+     "book", "pediatrician", None, [], [], False),
 ]
 
 

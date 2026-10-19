@@ -175,7 +175,13 @@ def sk_resched_exist(p, rng):
 
 @skeleton("resched_unknown", ["reschedule"], structural=True)
 def sk_resched_unknown(p, rng):
-    s = "у меня есть запись, надо перенести"
+    s = rng.choice([
+        "у меня есть запись, надо перенести",
+        # Этап C ТЗ: косвенный перенос «не могу прийти» — не бессонница
+        "есть запись, не могу прийти, перенесите",
+        "запись есть, прийти не смогу, надо перенести",
+        "у меня запись, прийти не получится, перенесите",
+    ])
     if p["temporal"]:
         s += f", удобно {p['temporal']}"
     return s + "." + _symp_tail(p)
@@ -308,6 +314,20 @@ def sk_family(p, rng):
     return _cap(s) + "." + _symp_tail(p)
 
 
+@skeleton("referral", ["book"], structural=True)
+def sk_referral(p, rng):
+    """Этап B (С-02): запись по направлению — «у меня направление к X»."""
+    verb = rng.choice(["запишите на приём", "хочу попасть на приём",
+                       "запишите", "нужна запись", "хочу попасть"])
+    if rng.random() < 0.5:
+        s = f"{_lead(rng)}у меня направление {p['syn']['dat']}, {verb}"
+    else:
+        s = f"{_lead(rng)}направление {p['syn']['dat']} на руках, {verb}"
+    if p["temporal"]:
+        s += f", {p['temporal']}"
+    return _cap(s) + "." + _symp_tail(p)
+
+
 @skeleton("cancel_notneed", ["cancel"])
 def sk_cancel_notneed(p, rng):
     """Порядок слов живой речи: «отменить, уже не нужно»."""
@@ -390,6 +410,31 @@ def sk_sched_generic(p, rng):
     return _cap(f"{_lead(rng)}{p['req']}") + "?"
 
 
+@skeleton("sched_cabinet", ["schedule"])
+def sk_sched_cabinet(p, rng):
+    """Этап B (С-07): «в каком кабинете принимает врач» — график/справка,
+    не проверка своей записи («какой у меня кабинет» — check_booking)."""
+    if p["syn"]:
+        return _cap(f"{_lead(rng)}в каком кабинете принимает "
+                    f"{p['syn']['nom']}") + "?"
+    return _cap(f"{_lead(rng)}в каком кабинете приём") + "?"
+
+
+@skeleton("sched_day", ["schedule"])
+def sk_sched_day(p, rng):
+    """Этап B (С-07): «вы в субботу работаете?» — вопрос о графике по
+    дням недели (временные иголки на schedule не проверяются — слот
+    времени у справочного интента не заполняется)."""
+    day = rng.choice(["в понедельник", "во вторник", "в среду", "в четверг",
+                      "в пятницу", "в субботу", "в воскресенье"])
+    return rng.choice([
+        f"вы {day} работаете",
+        f"вы работаете {day}",
+        f"{_lead(rng)}{day} вы работаете",
+        f"вы принимаете {day}",
+    ]) + "?"
+
+
 @skeleton("sched_doctor", ["schedule"])
 def sk_sched_doctor(p, rng):
     if p["syn"]:
@@ -419,7 +464,35 @@ def sk_home_ill(p, rng):
         "лежу с плохим самочувствием, врача на дом можно",
         "не могу прийти в поликлинику, нужен врач на дом",
         "выхожу из больницы, врач должен прийти домой",
+        # Этап B (С-06): ребёнок + на дом
+        "болеет ребёнок, врач нужен на дом",
+        "ребёнку срочно нужен врач на дом",
     ])
+
+
+@skeleton("home_relative", ["home_visit"], structural=True)
+def sk_home_relative(p, rng):
+    """Этап C ТЗ: симптом у родственника — «у мужа давит в груди».
+    Фрейм несёт симптом (не голое «да»), красные флаги дорезает safety."""
+    if not p["symp"]:
+        return sk_home_ill(p, rng)
+    who = rng.choice(["мужа", "жены", "мамы", "папы", "бабушки",
+                      "дедушки", "ребёнка"])
+    tail = rng.choice(["нужен врач на дом", "вызовите врача",
+                       "врача на дом", "надо врача на дом"])
+    return rng.choice([
+        f"у {who} {p['symp'][0]}, {tail}",
+        f"{_cap(p['symp'][0])} у {who}, {tail}",
+    ]) + "."
+
+
+@skeleton("home_spec", ["home_visit"], structural=True)
+def sk_home_spec(p, rng):
+    """«вызовите педиатра на дом» — врач конкретной специальности на дом
+    (винительный падеж, форма acc в словаре специальностей)."""
+    tmpl = rng.choice(["вызовите {} на дом", "пришлите {} на дом",
+                       "можно вызвать {} на дом", "хочу вызвать {} на дом"])
+    return _cap(tmpl.format(p["syn"]["acc"])) + "."
 
 
 @skeleton("lab_q", ["lab_status"])
@@ -464,6 +537,20 @@ def sk_paid_want(p, rng):
         "сколько будет стоить платный приём",
         "цена платного приёма изменилась",
     ])
+
+
+@skeleton("paid_spec", ["paid"], structural=True)
+def sk_paid_spec(p, rng):
+    """Этап B (С-09): «сколько стоит приём у кардиолога» — платный приём
+    конкретного специалиста, специальность остаётся в слоте."""
+    if not p["syn"]:
+        return sk_paid_q(p, rng)
+    return rng.choice([
+        f"сколько стоит приём {p['syn']['ugen']}",
+        f"приём {p['syn']['ugen']} сколько стоит",
+        f"сколько берёте за приём {p['syn']['ugen']}",
+        f"консультация {p['syn']['ugen']} почём",
+    ]) + "?"
 
 
 @skeleton("waitlist_q", ["waitlist"])
@@ -527,6 +614,21 @@ def sk_complaint_emotion(p, rng):
     ])
 
 
+@skeleton("complaint_person", ["complaint"])
+def sk_complaint_person(p, rng):
+    """Этап B (С-15): «врач нагрубил», «нахамил» — жалоба на персонал,
+    а не запись по слову «врач»."""
+    head, tail = rng.choice([
+        ("врач нагрубил", "куда пожаловаться"),
+        ("врач нахамил", "куда сообщить"),
+        ("медсестра нахамила", "куда обратиться"),
+        ("регистратор нагрубил", "хочу пожаловаться"),
+        ("доктор был груб", "куда написать жалобу"),
+        ("мне нахамили", "хочу оставить жалобу"),
+    ])
+    return _cap(f"{head}, {tail}") + "."
+
+
 @skeleton("medical_q", ["medical"])
 def sk_medical_q(p, rng):
     s = p["req"]
@@ -553,8 +655,18 @@ def _choose_skeleton(frame: Frame, rng) -> str:
         return "conflict"
     if frame.intent == "book" and frame.needs_clarification:
         return "unknown_spec"
+    if frame.intent == "book" and frame.aux.get("referral"):
+        return "referral"
     if frame.intent == "medical" and frame.aux.get("symp_medical"):
         return "medical_symp"
+    if frame.intent == "home_visit" and frame.aux.get("home_symp"):
+        return "home_relative"
+    if frame.intent == "home_visit" and frame.aux.get("home_spec"):
+        return "home_spec"
+    if frame.intent == "paid" and frame.aux.get("paid_spec"):
+        return "paid_spec"
+    if frame.intent == "schedule" and frame.aux.get("day_q"):
+        return "sched_day"
     if frame.ood:
         return rng.choice(["ood_a", "ood_b", "ood_c"])
     if frame.intent == "cancel" and frame.specialty not in SPECIALTIES:

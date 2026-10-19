@@ -141,7 +141,11 @@ def _sample_book(rng, ood: bool) -> Frame:
     else:
         symptoms = _sample_symptoms(rng, spec, p_none=0.40, p_two=0.15)
     temporal = _sample_temporal(rng)
-    return Frame("book", spec, symptoms, False, temporal, ood)
+    frame = Frame("book", spec, symptoms, False, temporal, ood)
+    # Этап B ТЗ (С-02): запись по направлению — «у меня направление к X»
+    if not ood and rng.random() < 0.10:
+        frame.aux["referral"] = True
+    return frame
 
 
 def _sample_clarification(rng) -> Frame:
@@ -207,6 +211,12 @@ def _sample_check_booking(rng) -> Frame:
 
 
 def _sample_schedule(rng) -> Frame:
+    if rng.random() < 0.35:
+        # «вы в субботу работаете?» — вопрос о дне недели без врача;
+        # вариант в ключе, иначе все дни делят один кап 60 неизвестной
+        # специальности (урок подсчёта: поверхность тоньше, чем кажется)
+        return Frame("schedule", "unknown", (), False, None,
+                     aux={"day_q": True, "variant": rng.randrange(24)})
     return _sample_spec_optional(rng, "schedule", p_spec=0.45)
 
 
@@ -217,6 +227,38 @@ def _sample_bare(rng, intent: str) -> Frame:
     # выбирает пул целиком, оставляя val/iid без представительства
     return Frame(intent, "unknown", (), False, None,
                  aux={"variant": rng.randrange(24)})
+
+
+# Симптомы, с которыми зовут врача на дом (Этап C ТЗ: «у мужа давит
+# в груди» — фрейм с <SYMPTOM_CHEST_PAIN>, не голое «да»). Красные флаги
+# дополнительно перехватывает safety-слой телефонии, но модель обязана
+# вернуть осмысленный фрейм.
+HOME_VISIT_SYMPTOMS = ("chest_pain", "shortness_of_breath", "fever",
+                       "vomiting", "nausea", "dizziness")
+
+
+def _sample_home_visit(rng) -> Frame:
+    r = rng.random()
+    if r < 0.30:
+        # «у мужа давит в груди, нужен врач на дом»
+        return Frame("home_visit", "unknown",
+                     (rng.choice(HOME_VISIT_SYMPTOMS),), False, None,
+                     aux={"home_symp": True})
+    if r < 0.50:
+        # «вызовите педиатра на дом» / «можно вызвать терапевта на дом»
+        spec = rng.choice(("gp", "pediatrician"))
+        return Frame("home_visit", spec, (), False, None,
+                     aux={"home_spec": True})
+    return _sample_bare(rng, "home_visit")
+
+
+def _sample_paid(rng) -> Frame:
+    # Этап B ТЗ (С-09): «сколько стоит приём кардиолога» — платный приём
+    # КОНКРЕТНОГО врача: specialty в слоте, а не отбрасывание иголки
+    if rng.random() < 0.40:
+        spec = rng.choice(list(SPECIALTIES))
+        return Frame("paid", spec, (), False, None, aux={"paid_spec": True})
+    return _sample_bare(rng, "paid")
 
 
 def _sample_medical(rng) -> Frame:
@@ -246,9 +288,9 @@ _INTENT_PLAN = [
     ("no", 0.05, lambda rng: _sample_answer(rng, "no")),
     ("check_booking", 0.05, _sample_check_booking),
     ("schedule", 0.05, _sample_schedule),
-    ("home_visit", 0.04, lambda rng: _sample_bare(rng, "home_visit")),
+    ("home_visit", 0.04, _sample_home_visit),
     ("lab_status", 0.04, lambda rng: _sample_bare(rng, "lab_status")),
-    ("paid", 0.04, lambda rng: _sample_bare(rng, "paid")),
+    ("paid", 0.04, _sample_paid),
     ("docs", 0.04, lambda rng: _sample_bare(rng, "docs")),
     ("waitlist", 0.03, lambda rng: _sample_bare(rng, "waitlist")),
     ("complaint", 0.03, lambda rng: _sample_bare(rng, "complaint")),
