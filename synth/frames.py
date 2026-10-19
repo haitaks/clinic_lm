@@ -177,13 +177,19 @@ def _sample_cancel(rng) -> Frame:
         # (раньше дыра: модель не знала формулировку и говорила UNSUPPORTED)
         return Frame("cancel", "unknown", (), False, None,
                      aux={"cancel_all": True})
+    # вес «unknown» поднят (0.6 -> 2.5): косвенная отмена без названного
+    # врача («не приду в пятницу, снимите запись» — С-04) — живая речь,
+    # раньше тонула среди отмен с конкретной специальностью и не добирала
+    # покрытие в train (cancel_skip тянул всего ~26 примеров на 3k).
     spec = rng.choices(list(SPECIALTIES) + ["unknown"],
-                       weights=[1.0] * len(SPECIALTIES) + [0.6])[0]
+                       weights=[1.0] * len(SPECIALTIES) + [2.5])[0]
     symptoms = _sample_symptoms(rng, spec, p_none=0.75, p_two=0.0) \
         if spec in SPECIALTIES else ()
-    # у cancel слот времени в v1 не заполняем: "завтра" тут относится
-    # к отменяемой записи, а не к желаемому времени
-    return Frame("cancel", spec, symptoms, False, None)
+    # без-специальности отмена: «variant» расширяет ключ фрейма, иначе все
+    # «снимите запись»/«не приду, отмените» схлопываются в один кап 60
+    # и косвенная отмена (cancel_skip) не добирает объём в train.
+    aux = {"variant": rng.randrange(24)} if spec == "unknown" else {}
+    return Frame("cancel", spec, symptoms, False, None, aux=aux)
 
 
 def _sample_unsupported(rng) -> Frame:

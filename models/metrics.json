@@ -1,35 +1,35 @@
 {
   "n": 1000,
-  "exact": 0.992,
-  "intent": 0.998,
-  "specialty": 0.998,
-  "time": 0.998,
+  "exact": 0.906,
+  "intent": 0.989,
+  "specialty": 0.995,
+  "time": 0.917,
   "symptoms_f1": 0.998,
   "samples": [
     {
-      "text": "рабочий день у вас какой?",
-      "gold": "<SCHEDULE> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>",
-      "pred": "<UNSUPPORTED> <END_FRAME>"
+      "text": "то что нужно",
+      "gold": "<YES> <END_FRAME>",
+      "pred": "<MEDICAL> <UNKNOWN_SPECIALTY> <T_UNKNOWN> <END_FRAME>"
     },
     {
-      "text": "участковый в 13:15 болит живот спина болит плечо не поднимается",
-      "gold": "<BOOK> <GP> <TIME> T_H13_15 </TIME> <SYMPTOM_STOMACH_PAIN> <SYMPTOM_BACK_PAIN> <END_FRAME>",
-      "pred": "<BOOK> <GP> <TIME> T_H13_15 </TIME> <SYMPTOM_BACK_PAIN> <SYMPTOM_STOMACH_PAIN> <END_FRAME>"
+      "text": "перенеси мой приём к зубному врачу, в 19:15.",
+      "gold": "<RESCHEDULE> <DENTIST> <TIME> T_H19_15 </TIME> <END_FRAME>",
+      "pred": "<RESCHEDULE> <DENTIST> <TIME> T_H14_15 </TIME> <END_FRAME>"
     },
     {
-      "text": "слушай, запись надо переделать на другое время к психологу, в воскресенье в 13:00 или в 13:30? тревога.",
-      "gold": "<RESCHEDULE> <PSYCHOLOGIST> <TIME> T_SUN T_AMBIG </TIME> <SYMPTOM_ANXIETY> <END_FRAME>",
-      "pred": "<RESCHEDULE> <PSYCHOLOGIST> <TIME> T_SUN T_AMBIG </TIME> <END_FRAME>"
+      "text": "ребят смените время записи к врачу по зубам в 19:15",
+      "gold": "<RESCHEDULE> <DENTIST> <TIME> T_H19_15 </TIME> <END_FRAME>",
+      "pred": "<RESCHEDULE> <DENTIST> <TIME> T_H14_15 </TIME> <END_FRAME>"
     },
     {
-      "text": "глазной врач. голова раскалывается.",
-      "gold": "<BOOK> <OPHTHALMOLOGIST> <T_UNKNOWN> <SYMPTOM_HEADACHE> <END_FRAME>",
-      "pred": "<BOOK> <DENTIST> <T_UNKNOWN> <SYMPTOM_HEADACHE> <END_FRAME>"
+      "text": "запись к зубному не отменяйте просто перенесите удобно в 19:15",
+      "gold": "<RESCHEDULE> <DENTIST> <TIME> T_H19_15 </TIME> <END_FRAME>",
+      "pred": "<RESCHEDULE> <DENTIST> <TIME> T_H14_15 </TIME> <END_FRAME>"
     },
     {
-      "text": "проверь, есть ли место у врача по коже в 13:00? Высыпания. Аллергия. Ногу свело.",
-      "gold": "<BOOK> <DERMATOLOGIST> <TIME> T_H13_00 </TIME> <SYMPTOM_RASH> <SYMPTOM_ALLERGY> <END_FRAME>",
-      "pred": "<BOOK> <DERMATOLOGIST> <TIME> T_H13_00 </TIME> <SYMPTOM_ALLERGY> <SYMPTOM_RASH> <END_FRAME>"
+      "text": "у меня запись к дантисту, её надо перенести, удобно в 19:15.",
+      "gold": "<RESCHEDULE> <DENTIST> <TIME> T_H19_15 </TIME> <END_FRAME>",
+      "pred": "<RESCHEDULE> <DENTIST> <TIME> T_H14_15 </TIME> <END_FRAME>"
     }
   ]
 }

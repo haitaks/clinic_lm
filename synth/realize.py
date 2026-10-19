@@ -195,6 +195,28 @@ def sk_cancel_cannot(p, rng):
     return s + "." + _symp_tail(p)
 
 
+@skeleton("cancel_skip", ["cancel"], structural=True)
+def sk_cancel_skip(p, rng):
+    """«не приду, снимите запись» — косвенная отмена через «снять» + день.
+
+    Этап C ТЗ (С-04): «не приду в пятницу, снимите запись» обязан быть
+    CANCEL, а не SCHEDULE (иголка «в пятницу» тянула в график). Слот
+    времени у cancel не заполняется — день относится к отменяемой записи.
+    """
+    verb = rng.choice(["снимите запись", "сними запись", "снимите мой приём",
+                       "отмените запись", "отмените приём", "аннулируйте запись"])
+    lead = rng.choice(["не приду", "не смогу прийти", "не приду на приём",
+                       "прийти не получится"])
+    day = rng.choice(["сегодня", "завтра", "в понедельник", "во вторник",
+                      "в среду", "в четверг", "в пятницу", "в субботу",
+                      "в воскресенье"])
+    if rng.random() < 0.65:
+        s = f"не приду {day}, {verb}"
+    else:
+        s = f"{lead}, {verb}"
+    return _cap(s) + "." + _symp_tail(p)
+
+
 @skeleton("cancel_direct", ["cancel"])
 def sk_cancel_direct(p, rng):
     if p["syn"]:
@@ -309,6 +331,22 @@ def sk_family(p, rng):
     verb = rng.choice(["записать", "запишите", "нужно записать",
                        "надо записать", "хочу записать"])
     s = f"{_lead(rng)}{verb} {who} {p['syn']['dat']}"
+    if p["temporal"]:
+        s += f", {p['temporal']}"
+    return _cap(s) + "." + _symp_tail(p)
+
+
+@skeleton("family_need", ["book"])
+def sk_family_need(p, rng):
+    """«сыну нужен детский врач» — нужда родственника + специалист в им. падеже.
+
+    Этап C ТЗ (С-12): «сыну нужен детский врач» обязан быть BOOK+PEDIATRICIAN,
+    а не WAITLIST/UNKNOWN: «сыну» (датив родственника) + «нужен» + номинатив
+    специальности — отдельная поверхность, которой не было.
+    """
+    who = rng.choice(["сыну", "дочке", "дочери", "мужу", "жене", "маме",
+                      "папе", "бабушке", "дедушке", "ребёнку", "ребенку"])
+    s = f"{_lead(rng)}{who} нужен {p['syn']['nom']}"
     if p["temporal"]:
         s += f", {p['temporal']}"
     return _cap(s) + "." + _symp_tail(p)
@@ -670,8 +708,11 @@ def _choose_skeleton(frame: Frame, rng) -> str:
     if frame.ood:
         return rng.choice(["ood_a", "ood_b", "ood_c"])
     if frame.intent == "cancel" and frame.specialty not in SPECIALTIES:
-        return "cancel_all" if frame.aux.get("cancel_all") \
-            else "cancel_unknown"
+        if frame.aux.get("cancel_all"):
+            return "cancel_all"
+        # косвенная отмена «не приду в пятницу, снимите запись» (С-04) —
+        # половина без-специальности отмен, иначе не покрывается формулировка
+        return rng.choice(["cancel_unknown", "cancel_unknown", "cancel_skip"])
     if frame.intent == "reschedule" and frame.specialty not in SPECIALTIES:
         return "resched_unknown"
 

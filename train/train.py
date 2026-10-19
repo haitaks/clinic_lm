@@ -36,9 +36,13 @@ def load_split(name, with_clinc=False):
     rows = [json.loads(l) for l in
             (ROOT / "data" / f"{name}.jsonl").read_text(encoding="utf-8").splitlines()]
     if with_clinc and name == "train":
-        clinc = [json.loads(l) for l in
-                 (ROOT / "data" / "clinc_ru.jsonl").read_text(encoding="utf-8").splitlines()]
-        rows += [r for r in clinc if r["split"] == "train_aug"]
+        clinc_path = ROOT / "data" / "clinc_ru.jsonl"
+        if clinc_path.exists():
+            clinc = [json.loads(l) for l in
+                     clinc_path.read_text(encoding="utf-8").splitlines()]
+            rows += [r for r in clinc if r["split"] == "train_aug"]
+        else:
+            print(f"  (clinc_ru.jsonl отсутствует — обучаем без CLINC-негативов)")
     return rows
 
 
